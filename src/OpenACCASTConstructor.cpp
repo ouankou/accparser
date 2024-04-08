@@ -3,6 +3,9 @@
 #include "accparser.h"
 #include <antlr4-runtime.h>
 
+// FIXME: Incorrect code. Temporarily added for 4.13.1 update.
+bool isFortran;
+
 OpenACCDirective *current_directive = NULL;
 OpenACCClause *current_clause = NULL;
 OpenACCDirective *current_parent_directive = NULL;
