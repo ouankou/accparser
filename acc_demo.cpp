@@ -26,8 +26,8 @@ static OpenACCDirective *generateOpenACCIR(std::string source) {
   std::cout << "======================================\n";
   printf("TOKEN : TOKEN_STRING\n");
   for (antlr4::Token *t : ts) {
-    std::cout << lexer.getVocabulary().getSymbolicName(t->getType()) << " : \""
-              << t->getText() << "\"\n";
+    std::string symbolicName(lexer.getVocabulary().getSymbolicName(t->getType()));
+    std::cout << symbolicName << " : \"" << t->getText() << "\"\n";
   }
 
   std::cout << "======================================\n";
