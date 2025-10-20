@@ -1,5 +1,6 @@
 #include "OpenACCIR.h"
 #include "accparserBaseListener.h"
+#include <atomic>
 
 class OpenACCIRConstructor : public accparserBaseListener {
 public:
@@ -229,6 +230,17 @@ public:
   exitWait_int_expr(accparser::Wait_int_exprContext * /*ctx*/) override;
   virtual void exitCondition(accparser::ConditionContext * /*ctx*/) override;
   virtual void exitVar(accparser::VarContext * /*ctx*/) override;
+  // Accessors for language flag. Use these instead of direct field access so
+  // the concrete listener owns the state and the API is stable.
+  void setFortran(bool f) { isFortran_.store(f, std::memory_order_relaxed); }
+  bool isFortran() const { return isFortran_.load(std::memory_order_relaxed); }
+
+private:
+  // Indicates whether the current input being parsed is Fortran.
+  // Put the flag in this concrete listener class rather than relying on
+  // generated listener/base listener insertions. This is more robust
+  // across ANTLR versions and generator template changes.
+  std::atomic<bool> isFortran_{false};
 };
 
 OpenACCDirective *parseOpenACC(std::string);

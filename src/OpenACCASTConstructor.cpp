@@ -2,6 +2,7 @@
 #include "acclexer.h"
 #include "accparser.h"
 #include <antlr4-runtime.h>
+#include <memory>
 
 OpenACCDirective *current_directive = NULL;
 OpenACCClause *current_clause = NULL;
@@ -17,18 +18,18 @@ static void setOpenACCLang(OpenACCDirective *directive, bool useFortran) {
 }
 
 void OpenACCIRConstructor::enterC_prefix(accparser::C_prefixContext *ctx) {
-  isFortran = false;
+  setFortran(false);
 }
 
 void OpenACCIRConstructor::enterFortran_prefix(
     accparser::Fortran_prefixContext *ctx) {
-  isFortran = true;
+  setFortran(true);
 }
 
 void OpenACCIRConstructor::enterAtomic_directive(
     accparser::Atomic_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_atomic);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterCache_directive(
@@ -36,7 +37,7 @@ void OpenACCIRConstructor::enterCache_directive(
   current_directive = new OpenACCCacheDirective();
   ((OpenACCCacheDirective *)current_directive)
       ->setModifier(ACCC_CACHE_unspecified);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::exitCache_directive_modifier(
@@ -48,13 +49,13 @@ void OpenACCIRConstructor::exitCache_directive_modifier(
 void OpenACCIRConstructor::enterData_directive(
     accparser::Data_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_data);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterDeclare_directive(
     accparser::Declare_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_declare);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterEnd_directive(
@@ -62,7 +63,7 @@ void OpenACCIRConstructor::enterEnd_directive(
   current_directive = new OpenACCEndDirective();
   current_parent_directive = current_directive;
   current_parent_clause = current_clause;
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::exitFortran_paired_directive(
@@ -73,73 +74,73 @@ void OpenACCIRConstructor::exitFortran_paired_directive(
   current_clause = current_parent_clause;
   current_parent_directive = NULL;
   current_parent_clause = NULL;
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterEnter_data_directive(
     accparser::Enter_data_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_enter_data);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterExit_data_directive(
     accparser::Exit_data_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_exit_data);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterHost_data_directive(
     accparser::Host_data_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_host_data);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterEnd_host_data_directive(
     accparser::End_host_data_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_host_data);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterInit_directive(
     accparser::Init_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_init);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterKernels_directive(
     accparser::Kernels_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_kernels);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterKernels_loop_directive(
     accparser::Kernels_loop_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_kernels_loop);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterLoop_directive(
     accparser::Loop_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_loop);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterParallel_directive(
     accparser::Parallel_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_parallel);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterParallel_loop_directive(
     accparser::Parallel_loop_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_parallel_loop);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterRoutine_directive(
     accparser::Routine_directiveContext *ctx) {
   current_directive = new OpenACCRoutineDirective();
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::exitName(accparser::NameContext *ctx) {
@@ -150,37 +151,37 @@ void OpenACCIRConstructor::exitName(accparser::NameContext *ctx) {
 void OpenACCIRConstructor::enterSerial_directive(
     accparser::Serial_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_serial);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterSerial_loop_directive(
     accparser::Serial_loop_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_serial_loop);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterSet_directive(
     accparser::Set_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_set);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterShutdown_directive(
     accparser::Shutdown_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_shutdown);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterUpdate_directive(
     accparser::Update_directiveContext *ctx) {
   current_directive = new OpenACCDirective(ACCD_update);
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterWait_directive(
     accparser::Wait_directiveContext *ctx) {
   current_directive = new OpenACCWaitDirective();
-  setOpenACCLang(current_directive, isFortran);
+  setOpenACCLang(current_directive, isFortran());
 }
 
 void OpenACCIRConstructor::enterAsync_clause(
@@ -755,7 +756,15 @@ OpenACCDirective *parseOpenACC(std::string source) {
   antlr4::tree::ParseTree *tree = parser.acc();
 
   antlr4::tree::ParseTreeWalker *walker = new antlr4::tree::ParseTreeWalker();
-  walker->walk(new OpenACCIRConstructor(), tree);
+  // Create a listener instance so we can configure it (and avoid relying on
+  // grammar-injected variables). The listener is owned locally and will be
+  // automatically destroyed when it goes out of scope, preventing leaks if an
+  // exception is thrown during walking.
+  std::unique_ptr<OpenACCIRConstructor> listener =
+      std::make_unique<OpenACCIRConstructor>();
+  // default isFortran_ is false already; if you want to force Fortran/C mode
+  // externally, call listener->setFortran(true/false) here before walking.
+  walker->walk(listener.get(), tree);
   assert(current_directive != NULL);
 
   return current_directive;

@@ -73,6 +73,7 @@ public:
   std::vector<std::string> *getExpressions() { return &expressions; };
 
   virtual std::string toString();
+  virtual ~OpenACCClause() = default;
   std::string expressionToString();
 };
 
@@ -172,6 +173,10 @@ public:
   };
 
   virtual std::string toString();
+
+  /* Ensure safe polymorphic destruction when callers delete a derived
+   * directive via an OpenACCDirective* pointer (tests do this). */
+  virtual ~OpenACCDirective() = default;
 
   std::string generatePragmaString(std::string _prefix = "#pragma acc ",
                                    std::string _beginning_symbol = "",

@@ -57,11 +57,11 @@ void doAfter() {}
 @ parser :: listenerpostinclude
 {/* listener postinclude section */}
 @ parser :: listenerdeclarations
-{/* listener public declarations/members section */ bool isFortran; }
+{/* listener public declarations/members section */ }
 @ parser :: listenermembers
 {/* listener private declarations/members section */}
 @ parser :: listenerdefinitions
-{/* listener definitions section */ isFortran = false; }
+{/* listener definitions section */ }
 @ parser :: baselistenerpreinclude
 {/* base listener preinclude section */}
 @ parser :: baselistenerpostinclude
