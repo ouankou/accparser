@@ -24,6 +24,16 @@ target_link_libraries(lang_flag_test.out
 
 add_test(NAME lang_flag_test COMMAND lang_flag_test.out)
 
+add_executable(compat_caller.out
+    compat_caller.cpp)
+add_dependencies(compat_caller.out accparser)
+target_link_libraries(compat_caller.out
+    accparser
+    antlr4-runtime
+)
+
+add_test(NAME compat_caller COMMAND compat_caller.out)
+
 set(accparser_targets accparser)
 set(executable_targets
     acc_tester.out
