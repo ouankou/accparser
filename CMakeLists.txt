@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.10)
 project(accparser)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_BUILD_TYPE Debug)
 
 set(ACCPARSER_VERSION_MAJOR 0)
@@ -37,19 +36,6 @@ set(ACCIR_SOURCE_FILES
     src/OpenACCIRToString.cpp
     )
 
-# tools based on accparser
-set(ACCPARSER_TOOLS
-    utils/omp-translator/OpenMPTranslator.cpp
-    utils/omp-translator/driver.cpp
-    )
-if (USE_OMPPARSER)
-    set(ACCIR_SOURCE_FILES ${ACCIR_SOURCE_FILES} ${ACCPARSER_TOOLS})
-    if (NOT USE_REX)
-        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/utils/omp-translator/ompparser)
-    endif()
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/utils/omp-translator/ompparser/src)
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/utils/omp-translator)
-endif()
 
 set(ACCPARSER_GRAMMAR_TARGET_FILES
   acclexer.cpp
@@ -81,19 +67,6 @@ target_include_directories(accparser PUBLIC
 target_include_directories(accparser SYSTEM PUBLIC
     /usr/include/antlr4-runtime
     )
-if (USE_OMPPARSER)
-    target_link_libraries(accparser
-        ompparser
-        )
-    add_executable(omp_demo.out
-        omp_demo.cpp)
-    add_dependencies(omp_demo.out accparser)
-    target_link_libraries(omp_demo.out
-        accparser
-        antlr4-runtime
-        )
-endif()
-
 add_executable(acc_demo.out
     acc_demo.cpp
     tests/preprocess.cpp)

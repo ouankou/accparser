@@ -1,3 +1,0 @@
-[submodule "utils/omp-translator/ompparser"]
-	path = utils/omp-translator/ompparser
-	url = https://github.com/passlab/ompparser.git
