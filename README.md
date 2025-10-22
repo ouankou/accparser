@@ -1,7 +1,6 @@
 # accparser
 accparser (ACCP): a standalone OpenACC parser based on ANTLR 4.
-It supports both C and Fortran. The generated OpenACC AST can be converted to OpenMP AST.
-The OpenMP AST is represented by OpenMPIR from [ompparser](https://github.com/passlab/ompparser).
+It supports both C and Fortran.
 
 
 ## Prerequisite
@@ -30,17 +29,7 @@ cmake ..
 make
 ```
 
-It will produce a library `libaccparser.so` and an executable `acc_demo.out`
-
-Optionally, we can also enable the OpenMP translator.
-
-```bash
-git submodule update --init
-mkdir build
-cd build
-cmake -DUSE_OMPPARSER=true -DCMAKE_INSTALL_PREFIX=../accparser-install ..
-make install
-```
+It will produce a library `libaccparser.so` and an executable `acc_demo.out`.
 
 ## Run
 
