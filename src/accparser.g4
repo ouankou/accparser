@@ -654,12 +654,12 @@ collapse_clause
    ;
 
 copy_clause
-   : COPY LEFT_PAREN var_list RIGHT_PAREN
+   : (PCOPY | PRESENT_OR_COPY | COPY) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 copyin_clause
-   : COPYIN LEFT_PAREN var_list RIGHT_PAREN
-   | COPYIN LEFT_PAREN copyin_clause_modifier COLON var_list RIGHT_PAREN
+   : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN copyin_clause_modifier COLON var_list RIGHT_PAREN
    ;
 
 copyin_clause_modifier
@@ -667,12 +667,12 @@ copyin_clause_modifier
    ;
 
 copyin_no_modifier_clause
-   : COPYIN LEFT_PAREN var_list RIGHT_PAREN
+   : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 copyout_clause
-   : COPYOUT LEFT_PAREN var_list RIGHT_PAREN
-   | COPYOUT LEFT_PAREN copyout_clause_modifier COLON var_list RIGHT_PAREN
+   : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN copyout_clause_modifier COLON var_list RIGHT_PAREN
    ;
 
 copyout_clause_modifier
@@ -680,12 +680,12 @@ copyout_clause_modifier
    ;
 
 copyout_no_modifier_clause
-   : COPYOUT LEFT_PAREN var_list RIGHT_PAREN
+   : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 create_clause
-   : CREATE LEFT_PAREN var_list RIGHT_PAREN
-   | CREATE LEFT_PAREN create_clause_modifier COLON var_list RIGHT_PAREN
+   : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN create_clause_modifier COLON var_list RIGHT_PAREN
    ;
 
 create_clause_modifier
@@ -693,7 +693,7 @@ create_clause_modifier
    ;
 
 create_no_modifier_clause
-   : CREATE LEFT_PAREN var_list RIGHT_PAREN
+   : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 default_clause
@@ -791,7 +791,7 @@ no_create_clause
    ;
 
 num_gangs_clause
-   : NUM_GANGS LEFT_PAREN int_expr RIGHT_PAREN
+   : NUM_GANGS LEFT_PAREN int_expr_list RIGHT_PAREN
    ;
 
 num_workers_clause

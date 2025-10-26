@@ -245,11 +245,13 @@ void OpenACCIRConstructor::enterAttach_clause(
 void OpenACCIRConstructor::enterCopy_clause(
     accparser::Copy_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copy);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
 }
 
 void OpenACCIRConstructor::enterCopyin_clause(
     accparser::Copyin_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copyin);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
   ((OpenACCCopyinClause *)current_clause)->setModifier(ACCC_COPYIN_unspecified);
 }
 
@@ -267,6 +269,7 @@ void OpenACCIRConstructor::exitCopyin_clause(
 void OpenACCIRConstructor::enterCopyin_no_modifier_clause(
     accparser::Copyin_no_modifier_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copyin);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
   ((OpenACCCopyinClause *)current_clause)->setModifier(ACCC_COPYIN_unspecified);
 }
 
@@ -279,6 +282,7 @@ void OpenACCIRConstructor::exitCopyin_no_modifier_clause(
 void OpenACCIRConstructor::enterCopyout_clause(
     accparser::Copyout_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copyout);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
   ((OpenACCCopyoutClause *)current_clause)
       ->setModifier(ACCC_COPYOUT_unspecified);
 }
@@ -297,6 +301,7 @@ void OpenACCIRConstructor::exitCopyout_clause(
 void OpenACCIRConstructor::enterCopyout_no_modifier_clause(
     accparser::Copyout_no_modifier_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copyout);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
   ((OpenACCCopyoutClause *)current_clause)
       ->setModifier(ACCC_COPYOUT_unspecified);
 }
@@ -310,6 +315,7 @@ void OpenACCIRConstructor::exitCopyout_no_modifier_clause(
 void OpenACCIRConstructor::enterCreate_clause(
     accparser::Create_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_create);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
   ((OpenACCCreateClause *)current_clause)->setModifier(ACCC_CREATE_unspecified);
 }
 
@@ -327,6 +333,7 @@ void OpenACCIRConstructor::exitCreate_clause_modifier(
 void OpenACCIRConstructor::enterCreate_no_modifier_clause(
     accparser::Create_no_modifier_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_create);
+  current_clause->setOriginalKeyword(ctx->getStart()->getText());
   ((OpenACCCreateClause *)current_clause)->setModifier(ACCC_CREATE_unspecified);
 }
 

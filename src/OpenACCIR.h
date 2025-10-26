@@ -47,6 +47,9 @@ protected:
   // the clause position in the vector of clauses in original order
   int clause_position = -1;
 
+  // Store original keyword text for alias preservation (e.g., pcreate vs create)
+  std::string original_keyword = "";
+
   /* consider this is a struct of array, i.e.
    * the expression/localtionLine/locationColumn are the same index are one
    * record for an expression and its location
@@ -64,6 +67,9 @@ public:
   void setClausePosition(int _clause_position) {
     clause_position = _clause_position;
   };
+
+  void setOriginalKeyword(std::string keyword) { original_keyword = keyword; };
+  std::string getOriginalKeyword() { return original_keyword; };
 
   // a list of expressions or variables that are language-specific for the
   // clause, accparser does not parse them, instead, it only stores them as

@@ -151,7 +151,11 @@ std::string OpenACCClause::toString() {
     result += "collapse ";
     break;
   case ACCC_copy:
-    result += "copy ";
+    if (!original_keyword.empty()) {
+      result += original_keyword + " ";
+    } else {
+      result += "copy ";
+    }
     break;
   case ACCC_default_async:
     result += "default_async ";
@@ -236,6 +240,7 @@ std::string OpenACCClause::toString() {
     break;
   case ACCC_use_device:
     result += "use_device ";
+    break;
   case ACCC_vector_length:
     result += "vector_length ";
     break;
@@ -342,7 +347,8 @@ std::string OpenACCWaitDirective::toString() {
 
 std::string OpenACCCopyinClause::toString() {
 
-  std::string result = "copyin (";
+  std::string keyword = original_keyword.empty() ? "copyin" : original_keyword;
+  std::string result = keyword + " (";
   std::string parameter_string = "";
   OpenACCCopyinClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -363,7 +369,8 @@ std::string OpenACCCopyinClause::toString() {
 
 std::string OpenACCCopyoutClause::toString() {
 
-  std::string result = "copyout (";
+  std::string keyword = original_keyword.empty() ? "copyout" : original_keyword;
+  std::string result = keyword + " (";
   std::string parameter_string = "";
   OpenACCCopyoutClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -384,7 +391,8 @@ std::string OpenACCCopyoutClause::toString() {
 
 std::string OpenACCCreateClause::toString() {
 
-  std::string result = "create (";
+  std::string keyword = original_keyword.empty() ? "create" : original_keyword;
+  std::string result = keyword + " (";
   std::string parameter_string = "";
   OpenACCCreateClauseModifier modifier = this->getModifier();
   switch (modifier) {

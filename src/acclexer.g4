@@ -193,52 +193,52 @@ COLLAPSE
    : 'collapse' -> pushMode (expr_clause)
    ;
 
+PCOPY
+   : 'pcopy' -> pushMode (expr_clause)
+   ;
+
+PRESENT_OR_COPY
+   : 'present_or_copy' -> pushMode (expr_clause)
+   ;
+
 COPY
    : 'copy' -> pushMode (expr_clause)
    ;
 
-PCOPY
-   : 'pcopy' -> type (COPY) , pushMode (expr_clause)
+PCOPYIN
+   : 'pcopyin' -> pushMode (copyin_clause)
    ;
 
-PRESENT_OR_COPY
-   : 'present_or_copy' -> type (COPY) , pushMode (expr_clause)
+PRESENT_OR_COPYIN
+   : 'present_or_copyin' -> pushMode (copyin_clause)
    ;
 
 COPYIN
    : 'copyin' -> pushMode (copyin_clause)
    ;
 
-PCOPYIN
-   : 'pcopyin' -> type (COPYIN) , pushMode (copyin_clause)
+PCOPYOUT
+   : 'pcopyout' -> pushMode (copyout_clause)
    ;
 
-PRESENT_OR_COPYIN
-   : 'present_or_copyin' -> type (COPYIN) , pushMode (copyin_clause)
+PRESENT_OR_COPYOUT
+   : 'present_or_copyout' -> pushMode (copyout_clause)
    ;
 
 COPYOUT
    : 'copyout' -> pushMode (copyout_clause)
    ;
 
-PCOPYOUT
-   : 'pcopyout' -> type (COPYOUT) , pushMode (copyout_clause)
+PCREATE
+   : 'pcreate' -> pushMode (create_clause)
    ;
 
-PRESENT_OR_COPYOUT
-   : 'present_or_copyout' -> type (COPYOUT) , pushMode (copyout_clause)
+PRESENT_OR_CREATE
+   : 'present_or_create' -> pushMode (create_clause)
    ;
 
 CREATE
    : 'create' -> pushMode (create_clause)
-   ;
-
-PCREATE
-   : 'pcreate' -> type (CREATE) , pushMode (create_clause)
-   ;
-
-PRESENT_OR_CREATE
-   : 'present_or_create' -> type (CREATE) , pushMode (create_clause)
    ;
 
 DEFAULT
@@ -293,7 +293,7 @@ GANG
    : 'gang' [\p{White_Space}]*
    {
   if (_input->LA(1) == '(')
-    pushMode(expr_clause);
+    pushMode(gang_clause);
 }
    ;
 
@@ -330,7 +330,7 @@ NUM
    ;
 
 NUM_GANGS
-   : 'num_gangs' -> pushMode (expr_clause)
+   : 'num_gangs' -> pushMode (gang_clause)
    ;
 
 NUM_WORKERS
@@ -366,7 +366,7 @@ SEQ
    ;
 
 TILE
-   : 'tile' -> pushMode (expr_clause)
+   : 'tile' -> pushMode (gang_clause)
    ;
 
 USE_DEVICE
@@ -1048,6 +1048,41 @@ WORKER_BLANK
    ;
 
 WORKER_LINE_END
+   : [\n\r] -> skip
+   ;
+
+mode gang_clause;
+GANG_LEFT_PAREN
+   : '(' [\p{White_Space}]*
+   {
+  setType(LEFT_PAREN);
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+}
+   ;
+
+GANG_RIGHT_PAREN
+   : ')' -> type (RIGHT_PAREN) , popMode
+   ;
+
+GANG_COMMA
+   : ',' [\p{White_Space}]*
+   {
+  skip();
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+}
+   ;
+
+GANG_BLANK
+   : [\p{White_Space}]+ -> skip
+   ;
+
+GANG_LINE_END
    : [\n\r] -> skip
    ;
 

@@ -4,11 +4,15 @@
 void OpenACCClause::addLangExpr(std::string expression, int line, int col) {
   //  Since the size of expression vector is supposed to be small, brute force
   //  is used here.
-  for (unsigned int i = 0; i < this->expressions.size(); i++) {
-    if (expressions.at(i) == expression) {
-      return;
+  //  NOTE: Deduplication disabled for tile, num_gangs, gang where position matters
+  bool allow_duplicates = (kind == ACCC_tile || kind == ACCC_num_gangs || kind == ACCC_gang);
+  if (!allow_duplicates) {
+    for (unsigned int i = 0; i < this->expressions.size(); i++) {
+      if (expressions.at(i) == expression) {
+        return;
+      };
     };
-  };
+  }
   expressions.push_back(expression);
 
   locations.push_back(ACC_SourceLocation(line, col));
