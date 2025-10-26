@@ -273,6 +273,10 @@ DEVICE_TYPE
    : 'device_type' -> pushMode (expr_clause)
    ;
 
+DTYPE
+   : 'dtype' -> type (DEVICE_TYPE) , pushMode (expr_clause)
+   ;
+
 DEVICEPTR
    : 'deviceptr' -> pushMode (expr_clause)
    ;
@@ -768,6 +772,18 @@ REDUCTION_RIGHT_PAREN
 
 ADD
    : '+' [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+SUB
+   : '-' [\p{White_Space}]*
    {
   if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
       (_input->LA(1) != ':')) {

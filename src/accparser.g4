@@ -165,7 +165,8 @@ data_clause_list
    ;
 
 data_clauses
-   : attach_clause
+   : async_clause
+   | attach_clause
    | copy_clause
    | copyin_clause
    | copyout_clause
@@ -175,6 +176,7 @@ data_clauses
    | if_clause
    | no_create_clause
    | present_clause
+   | wait_clause
    ;
 
 declare_directive
@@ -814,6 +816,7 @@ reduction_clause
 
 reduction_operator
    : ADD
+   | SUB
    | MUL
    | MAX
    | MIN

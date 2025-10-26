@@ -525,6 +525,8 @@ void OpenACCIRConstructor::exitReduction_operator(
       ACCC_REDUCTION_unspecified;
   if (expression == "+")
     reduction_operator = ACCC_REDUCTION_add;
+  else if (expression == "-")
+    reduction_operator = ACCC_REDUCTION_sub;
   else if (expression == "*")
     reduction_operator = ACCC_REDUCTION_mul;
   else if (expression == "max")

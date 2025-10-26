@@ -437,6 +437,9 @@ std::string OpenACCReductionClause::toString() {
   case ACCC_REDUCTION_add:
     parameter_string = "+: ";
     break;
+  case ACCC_REDUCTION_sub:
+    parameter_string = "-: ";
+    break;
   case ACCC_REDUCTION_mul:
     parameter_string = "*: ";
     break;
@@ -447,7 +450,7 @@ std::string OpenACCReductionClause::toString() {
     parameter_string = "min: ";
     break;
   case ACCC_REDUCTION_bitand:
-    parameter_string = "$: ";
+    parameter_string = "&: ";
     break;
   case ACCC_REDUCTION_bitor:
     parameter_string = "|: ";

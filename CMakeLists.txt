@@ -49,7 +49,7 @@ set(ACCPARSER_GRAMMAR_TARGET_FILES
 add_custom_command(OUTPUT
     ${ACCPARSER_GRAMMAR_TARGET_FILES}
     COMMAND
-    antlr4 ${ACCPARSER_GRAMMAR_FILES} -Werror -Dlanguage=Cpp -listener -visitor -o ${CMAKE_CURRENT_BINARY_DIR}
+    java -jar ${CMAKE_CURRENT_SOURCE_DIR}/antlr-4.10-complete.jar ${ACCPARSER_GRAMMAR_FILES} -Werror -Dlanguage=Cpp -listener -visitor -o ${CMAKE_CURRENT_BINARY_DIR}
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS "${ACCPARSER_GRAMMAR_FILES}"
     )
@@ -76,6 +76,14 @@ add_executable(acc_demo.out
     tests/preprocess.cpp)
 add_dependencies(acc_demo.out accparser)
 target_link_libraries(acc_demo.out
+    accparser
+    antlr4-runtime
+    )
+
+add_executable(acc_roundtrip.out
+    acc_roundtrip.cpp)
+add_dependencies(acc_roundtrip.out accparser)
+target_link_libraries(acc_roundtrip.out
     accparser
     antlr4-runtime
     )
