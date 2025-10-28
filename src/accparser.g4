@@ -825,6 +825,13 @@ reduction_operator
    | BITXOR
    | LOGAND
    | LOGOR
+   | FORT_AND
+   | FORT_OR
+   | FORT_EQV
+   | FORT_NEQV
+   | FORT_IAND
+   | FORT_IOR
+   | FORT_IEOR
    ;
 
 self_clause

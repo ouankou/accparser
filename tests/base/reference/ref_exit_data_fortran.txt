@@ -1,6 +1,6 @@
 !$acc exit data async (5)
-!$acc exit data copyout (x, y)
-!$acc exit data copyout (x, y, z, a, b, c)
+!$acc exit data copyout(x, y)
+!$acc exit data copyout(x, y, z, a, b, c)
 !$acc exit data wait (12, 23, 34)
 !$acc exit data if (5)
 !$acc exit data if (x==3)

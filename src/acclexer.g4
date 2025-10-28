@@ -890,6 +890,90 @@ LOGOR
 }
    ;
 
+FORT_AND
+   : ('.' [Aa] [Nn] [Dd] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_OR
+   : ('.' [Oo] [Rr] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_EQV
+   : ('.' [Ee] [Qq] [Vv] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_NEQV
+   : ('.' [Nn] [Ee] [Qq] [Vv] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_IAND
+   : [Ii] [Aa] [Nn] [Dd] [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_IOR
+   : [Ii] [Oo] [Rr] [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_IEOR
+   : [Ii] [Ee] [Oo] [Rr] [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
 REDUCTION_COLON
    : ':' [\p{White_Space}]*
    {
@@ -1190,11 +1274,14 @@ EXPRESSION_CHAR
     break;
   }
   case ':': {
-    if (_input->LA(2) != ':' && colon_count == 0 && bracket_count == 0) {
+    // Only end expression on colon if we're NOT inside any delimiters (parentheses OR brackets)
+    if (_input->LA(2) != ':' && colon_count == 0 && bracket_count == 0 && parenthesis_local_count == 0) {
       colon_count = 0;
       setType(EXPR);
       popMode();
     } else {
+      // Track colon count for clause modifier separators (e.g., "readonly:")
+      // Only track when NOT inside brackets (C array slices [1:10])
       if (bracket_count == 0) {
         if (colon_count == 0) {
           colon_count += 1;

@@ -550,6 +550,20 @@ void OpenACCIRConstructor::exitReduction_operator(
     reduction_operator = ACCC_REDUCTION_logand;
   else if (expression == "||")
     reduction_operator = ACCC_REDUCTION_logor;
+  else if (expression == ".and." || expression == ".AND.")
+    reduction_operator = ACCC_REDUCTION_fort_and;
+  else if (expression == ".or." || expression == ".OR.")
+    reduction_operator = ACCC_REDUCTION_fort_or;
+  else if (expression == ".eqv." || expression == ".EQV.")
+    reduction_operator = ACCC_REDUCTION_fort_eqv;
+  else if (expression == ".neqv." || expression == ".NEQV.")
+    reduction_operator = ACCC_REDUCTION_fort_neqv;
+  else if (expression == "iand" || expression == "IAND")
+    reduction_operator = ACCC_REDUCTION_fort_iand;
+  else if (expression == "ior" || expression == "IOR")
+    reduction_operator = ACCC_REDUCTION_fort_ior;
+  else if (expression == "ieor" || expression == "IEOR")
+    reduction_operator = ACCC_REDUCTION_fort_ieor;
   ((OpenACCReductionClause *)current_clause)->setOperator(reduction_operator);
 };
 
