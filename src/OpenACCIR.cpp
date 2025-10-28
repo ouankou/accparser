@@ -319,7 +319,9 @@ void OpenACCCopyinClause::mergeClause(OpenACCDirective *directive,
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
        it != current_clauses->end() - 1; it++) {
     if (((OpenACCCopyinClause *)(*it))->getModifier() ==
-        ((OpenACCCopyinClause *)current_clause)->getModifier()) {
+        ((OpenACCCopyinClause *)current_clause)->getModifier() &&
+        ((OpenACCClause *)(*it))->getOriginalKeyword() ==
+        ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
       std::vector<std::string> *expressions_previous_clause =
           ((OpenACCClause *)(*it))->getExpressions();
       std::vector<std::string> *expressions_current_clause =
@@ -375,7 +377,9 @@ void OpenACCCopyoutClause::mergeClause(OpenACCDirective *directive,
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
        it != current_clauses->end() - 1; it++) {
     if (((OpenACCCopyoutClause *)(*it))->getModifier() ==
-        ((OpenACCCopyoutClause *)current_clause)->getModifier()) {
+        ((OpenACCCopyoutClause *)current_clause)->getModifier() &&
+        ((OpenACCClause *)(*it))->getOriginalKeyword() ==
+        ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
       std::vector<std::string> *expressions_previous_clause =
           ((OpenACCClause *)(*it))->getExpressions();
       std::vector<std::string> *expressions_current_clause =
@@ -431,7 +435,9 @@ void OpenACCCreateClause::mergeClause(OpenACCDirective *directive,
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
        it != current_clauses->end() - 1; it++) {
     if (((OpenACCCreateClause *)(*it))->getModifier() ==
-        ((OpenACCCreateClause *)current_clause)->getModifier()) {
+        ((OpenACCCreateClause *)current_clause)->getModifier() &&
+        ((OpenACCClause *)(*it))->getOriginalKeyword() ==
+        ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
       std::vector<std::string> *expressions_previous_clause =
           ((OpenACCClause *)(*it))->getExpressions();
       std::vector<std::string> *expressions_current_clause =
