@@ -42,9 +42,21 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
 
   switch (kind) {
   case ACCC_attach:
+  case ACCC_copy: {
+    // Allow multiple copy clauses - do not merge them
+    if (current_clauses->size() == 0) {
+      new_clause = new OpenACCClause(kind);
+      current_clauses = new std::vector<OpenACCClause *>();
+      current_clauses->push_back(new_clause);
+      clauses[kind] = current_clauses;
+    } else {
+      new_clause = new OpenACCClause(kind);
+      current_clauses->push_back(new_clause);
+    }
+    break;
+  }
   case ACCC_auto:
   case ACCC_capture:
-  case ACCC_copy:
   case ACCC_delete:
   case ACCC_detach:
   case ACCC_device:
