@@ -20,6 +20,9 @@ int main(int argc, char *argv[]) {
         input += '\n';
     }
 
+    // Disable clause merging for exact round-trip parsing
+    OpenACCDirective::setClauseMerging(false);
+
     antlr4::ANTLRInputStream antlr_input(input);
     acclexer lexer(&antlr_input);
     antlr4::CommonTokenStream tokens(&lexer);

@@ -1,6 +1,9 @@
 #include "OpenACCIR.h"
 #include <cstdarg>
 
+// Initialize static flag - default to true for backward compatibility
+bool OpenACCDirective::enable_clause_merging = true;
+
 void OpenACCClause::addLangExpr(std::string expression, int line, int col) {
   //  Since the size of expression vector is supposed to be small, brute force
   //  is used here.
@@ -42,21 +45,9 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
 
   switch (kind) {
   case ACCC_attach:
-  case ACCC_copy: {
-    // Allow multiple copy clauses - do not merge them
-    if (current_clauses->size() == 0) {
-      new_clause = new OpenACCClause(kind);
-      current_clauses = new std::vector<OpenACCClause *>();
-      current_clauses->push_back(new_clause);
-      clauses[kind] = current_clauses;
-    } else {
-      new_clause = new OpenACCClause(kind);
-      current_clauses->push_back(new_clause);
-    }
-    break;
-  }
   case ACCC_auto:
   case ACCC_capture:
+  case ACCC_copy:
   case ACCC_delete:
   case ACCC_detach:
   case ACCC_device:
@@ -89,10 +80,14 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
       if (kind == ACCC_if) {
         std::cerr << "Cannot have two if clauses for the directive " << kind
                   << ", ignored\n";
-      } else {
+      } else if (enable_clause_merging) {
         /* we can have multiple clause and we merge them together now, thus we
          * return the object that is already created */
         new_clause = current_clauses->at(0);
+      } else {
+        /* merging is disabled - create a new clause instance */
+        new_clause = new OpenACCClause(kind);
+        current_clauses->push_back(new_clause);
       }
     }
     break;

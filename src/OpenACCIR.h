@@ -91,6 +91,12 @@ protected:
   OpenACCDirectiveKind kind;
   OpenACCBaseLang lang;
 
+  /* Flag to control whether clauses should be merged/normalized.
+   * When true (default), multiple clauses of the same type are merged.
+   * When false, clauses are preserved separately for exact round-trip parsing.
+   */
+  static bool enable_clause_merging;
+
   /* The vector is used to store the pointers of clauses in original order.
    * While unparsing, the generated pragma keeps the clauses in the same order
    * as the input. For example, #pragma omp parallel shared(a) private(b) is the
@@ -166,6 +172,10 @@ public:
       : ACC_SourceLocation(_line, _col), kind(k), lang(_lang){};
 
   OpenACCDirectiveKind getKind() { return kind; };
+
+  // Static methods to control clause merging behavior
+  static void setClauseMerging(bool enable) { enable_clause_merging = enable; }
+  static bool getClauseMerging() { return enable_clause_merging; }
 
   std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *getAllClauses() {
     return &clauses;
