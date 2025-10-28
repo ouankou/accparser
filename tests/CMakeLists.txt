@@ -1,7 +1,5 @@
 enable_testing()
 add_subdirectory(base)
-add_subdirectory(gpubootcamp)
-add_subdirectory(openacc-users-group)
 
 add_compile_options(-Wall)
 

@@ -12,7 +12,7 @@
 # 7. Reporting pass/fail statistics
 #
 # Usage:
-#   ./test_openacc_vv.sh                        # Auto-clone to target/openacc_vv
+#   ./test_openacc_vv.sh                        # Auto-clone to build/openacc_vv
 #   OPENACC_VV_PATH=/path ./test_openacc_vv.sh  # Use existing clone
 #   CLANG=clang-15 ./test_openacc_vv.sh         # Use specific C/C++ compiler
 #   FC=gfortran ./test_openacc_vv.sh            # Use specific Fortran compiler
@@ -23,7 +23,7 @@ set -euo pipefail
 
 # Configuration
 REPO_URL="https://github.com/OpenACCUserGroup/OpenACCV-V"
-REPO_PATH="${OPENACC_VV_PATH:-target/openacc_vv}"
+REPO_PATH="${OPENACC_VV_PATH:-build/openacc_vv}"
 TESTS_DIR="Tests"
 CLANG="${CLANG:-}"  # Auto-detect if not specified
 CLANG_FORMAT="${CLANG_FORMAT:-clang-format}"

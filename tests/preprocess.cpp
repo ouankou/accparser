@@ -2,16 +2,14 @@
 #include <iostream>
 #include <regex>
 
-std::vector<std::pair<std::string, int>> *preProcess(std::ifstream &);
+std::vector<std::pair<std::string, int>> preProcess(std::ifstream &);
 
-std::vector<std::pair<std::string, int>> *
+std::vector<std::pair<std::string, int>>
 preProcess(std::ifstream &input_file) {
 
   std::string input_pragma;
-  int total_amount = 0;
   int line_no = 0;
-  std::vector<std::pair<std::string, int>> *acc_pragmas =
-      new std::vector<std::pair<std::string, int>>();
+  std::vector<std::pair<std::string, int>> acc_pragmas;
 
   char current_char = input_file.peek();
   std::string current_line;
@@ -49,14 +47,13 @@ preProcess(std::ifstream &input_file) {
           step += 1;
         };
         input_pragma += current_line;
-        total_amount += 1;
-        if (std::regex_match(current_line, fortran_regex) == true) {
+        if (std::regex_match(current_line, fortran_regex)) {
           std::locale loc;
           for (unsigned int i = 0; i < input_pragma.size(); i++) {
-            std::tolower(input_pragma[i], loc);
+            input_pragma[i] = std::tolower(input_pragma[i], loc);
           }
         }
-        acc_pragmas->push_back(std::make_pair(input_pragma, line_no));
+        acc_pragmas.push_back({input_pragma, line_no});
         line_no += step;
         step = 0;
       }

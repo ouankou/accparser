@@ -1,7 +1,7 @@
 !$acc kernels async (5)
 !$acc kernels attach (a, b, c)
 !$acc kernels copy (a, b, c)
-!$acc kernels copyin (x[0 : N], y[0:M])
+!$acc kernels copyin (x[0 : n], y[0:m])
 !$acc kernels copyin (readonly: m, n)
 !$acc kernels copyin (readonly: m, n, readonly)
 !$acc kernels copyin (readonly: readonly::m, n, readonly)

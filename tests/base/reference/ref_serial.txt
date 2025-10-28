@@ -36,7 +36,7 @@
 #pragma acc serial reduction (min: min, y, z)
 #pragma acc serial reduction (min: min::x, y, min)
 #pragma acc serial reduction (min: min::x, min, min::y)
-#pragma acc serial reduction ($: x[5], y, z)
+#pragma acc serial reduction (&: x[5], y, z)
 #pragma acc serial reduction (|: x, y, z)
 #pragma acc serial reduction (^: x, y, z)
 #pragma acc serial reduction (&&: x, y, z)

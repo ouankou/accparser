@@ -39,7 +39,7 @@
 #pragma acc parallel reduction (min: min, y, z)
 #pragma acc parallel reduction (min: min::x, y, min)
 #pragma acc parallel reduction (min: min::x, min, min::y)
-#pragma acc parallel reduction ($: x[5], y, z)
+#pragma acc parallel reduction (&: x[5], y, z)
 #pragma acc parallel reduction (|: x, y, z)
 #pragma acc parallel reduction (^: x, y, z)
 #pragma acc parallel reduction (&&: x, y, z)
