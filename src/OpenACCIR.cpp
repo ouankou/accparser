@@ -213,6 +213,11 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
 
 void OpenACCAsyncClause::mergeClause(OpenACCDirective *directive,
                                      OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_async);
 
@@ -244,6 +249,11 @@ void OpenACCAsyncClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCBindClause::mergeClause(OpenACCDirective *directive,
                                     OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_bind);
 
@@ -269,6 +279,11 @@ void OpenACCBindClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCCollapseClause::mergeClause(OpenACCDirective *directive,
                                         OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_collapse);
 
@@ -321,6 +336,11 @@ OpenACCClause *OpenACCCopyinClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCCopyinClause::mergeClause(OpenACCDirective *directive,
                                       OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_copyin);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
@@ -379,6 +399,11 @@ OpenACCClause *OpenACCCopyoutClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCCopyoutClause::mergeClause(OpenACCDirective *directive,
                                        OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_copyout);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
@@ -437,6 +462,11 @@ OpenACCClause *OpenACCCreateClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCCreateClause::mergeClause(OpenACCDirective *directive,
                                       OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_create);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
@@ -495,6 +525,11 @@ OpenACCClause *OpenACCDefaultClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCDefaultAsyncClause::mergeClause(OpenACCDirective *directive,
                                             OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_default_async);
 
@@ -520,6 +555,11 @@ void OpenACCDefaultAsyncClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCDeviceNumClause::mergeClause(OpenACCDirective *directive,
                                          OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_device_num);
 
@@ -545,6 +585,11 @@ void OpenACCDeviceNumClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCGangClause::mergeClause(OpenACCDirective *directive,
                                     OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_gang);
 
@@ -588,6 +633,11 @@ void OpenACCGangClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCNumGangsClause::mergeClause(OpenACCDirective *directive,
                                         OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_num_gangs);
 
@@ -613,6 +663,11 @@ void OpenACCNumGangsClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCNumWorkersClause::mergeClause(OpenACCDirective *directive,
                                           OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_num_workers);
 
@@ -659,6 +714,11 @@ OpenACCClause *OpenACCReductionClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCReductionClause::mergeClause(OpenACCDirective *directive,
                                          OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_reduction);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
@@ -694,6 +754,11 @@ void OpenACCReductionClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCSelfClause::mergeClause(OpenACCDirective *directive,
                                     OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_self);
 
@@ -756,6 +821,11 @@ OpenACCClause *OpenACCVectorClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCVectorClause::mergeClause(OpenACCDirective *directive,
                                       OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_vector);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
@@ -783,6 +853,11 @@ void OpenACCVectorClause::mergeClause(OpenACCDirective *directive,
 
 void OpenACCVectorLengthClause::mergeClause(OpenACCDirective *directive,
                                             OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_vector_length);
 
@@ -826,6 +901,11 @@ OpenACCClause *OpenACCWaitClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCWaitClause::mergeClause(OpenACCDirective *directive,
                                     OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_wait);
 
@@ -904,6 +984,11 @@ OpenACCClause *OpenACCWorkerClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCWorkerClause::mergeClause(OpenACCDirective *directive,
                                       OpenACCClause *current_clause) {
+  // Respect the global clause merging flag
+  if (!OpenACCDirective::getClauseMerging()) {
+    return;
+  }
+
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_worker);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
