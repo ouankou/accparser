@@ -151,7 +151,11 @@ std::string OpenACCClause::toString() {
     result += "collapse ";
     break;
   case ACCC_copy:
-    result += "copy ";
+    if (!original_keyword.empty()) {
+      result += original_keyword + " ";
+    } else {
+      result += "copy ";
+    }
     break;
   case ACCC_default_async:
     result += "default_async ";
@@ -236,6 +240,7 @@ std::string OpenACCClause::toString() {
     break;
   case ACCC_use_device:
     result += "use_device ";
+    break;
   case ACCC_vector_length:
     result += "vector_length ";
     break;
@@ -259,6 +264,10 @@ std::string OpenACCClause::toString() {
   clause_string += this->expressionToString();
   clause_string += ") ";
   if (clause_string.size() > 3) {
+    // Remove trailing space from clause name before adding parenthesized expression
+    if (!result.empty() && result.back() == ' ') {
+      result.pop_back();
+    }
     result += clause_string;
   }
 
@@ -282,7 +291,7 @@ std::string OpenACCCacheDirective::expressionToString() {
 
 std::string OpenACCCacheDirective::toString() {
 
-  std::string result = "cache (";
+  std::string result = "cache";
   std::string parameter_string = "";
   OpenACCCacheDirectiveModifier modifier = this->getModifier();
   switch (modifier) {
@@ -293,9 +302,9 @@ std::string OpenACCCacheDirective::toString() {
   };
   parameter_string += this->expressionToString();
   if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 1);
+    result += " ";
   }
 
   return result;
@@ -318,10 +327,10 @@ std::string OpenACCWaitDirective::expressionToString() {
 
 std::string OpenACCWaitDirective::toString() {
 
-  std::string result = "wait ";
+  std::string result = "wait";
   std::string parameter_string = "";
   if (this->getExpressions()->size() != 0) {
-    parameter_string += "( ";
+    result += "(";
     std::string devnum = this->getDevnum();
     if (devnum != "") {
       parameter_string += "devnum: " + devnum + ": ";
@@ -331,18 +340,17 @@ std::string OpenACCWaitDirective::toString() {
     };
 
     parameter_string += this->expressionToString();
-    if (parameter_string.size() > 0) {
-      result += parameter_string + ") ";
-    } else {
-      result = result.substr(0, result.size() - 1);
-    }
+    result += parameter_string + ") ";
+  } else {
+    result += " ";
   }
   return result;
 };
 
 std::string OpenACCCopyinClause::toString() {
 
-  std::string result = "copyin (";
+  std::string keyword = original_keyword.empty() ? "copyin" : original_keyword;
+  std::string result = keyword + "(";
   std::string parameter_string = "";
   OpenACCCopyinClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -363,7 +371,8 @@ std::string OpenACCCopyinClause::toString() {
 
 std::string OpenACCCopyoutClause::toString() {
 
-  std::string result = "copyout (";
+  std::string keyword = original_keyword.empty() ? "copyout" : original_keyword;
+  std::string result = keyword + "(";
   std::string parameter_string = "";
   OpenACCCopyoutClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -384,7 +393,8 @@ std::string OpenACCCopyoutClause::toString() {
 
 std::string OpenACCCreateClause::toString() {
 
-  std::string result = "create (";
+  std::string keyword = original_keyword.empty() ? "create" : original_keyword;
+  std::string result = keyword + "(";
   std::string parameter_string = "";
   OpenACCCreateClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -405,7 +415,7 @@ std::string OpenACCCreateClause::toString() {
 
 std::string OpenACCDefaultClause::toString() {
 
-  std::string result = "default (";
+  std::string result = "default";
   std::string parameter_string;
   OpenACCDefaultClauseKind default_kind = this->getKind();
   switch (default_kind) {
@@ -420,9 +430,9 @@ std::string OpenACCDefaultClause::toString() {
   };
 
   if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 2);
+    result += " ";
   }
 
   return result;
@@ -430,36 +440,60 @@ std::string OpenACCDefaultClause::toString() {
 
 std::string OpenACCReductionClause::toString() {
 
-  std::string result = "reduction (";
+  std::string result = "reduction(";
   std::string parameter_string = "";
   OpenACCReductionClauseOperator reduction_operator = this->getOperator();
   switch (reduction_operator) {
   case ACCC_REDUCTION_add:
-    parameter_string = "+: ";
+    parameter_string = "+ : ";
+    break;
+  case ACCC_REDUCTION_sub:
+    parameter_string = "- : ";
     break;
   case ACCC_REDUCTION_mul:
-    parameter_string = "*: ";
+    parameter_string = "* : ";
     break;
   case ACCC_REDUCTION_max:
-    parameter_string = "max: ";
+    parameter_string = "max : ";
     break;
   case ACCC_REDUCTION_min:
-    parameter_string = "min: ";
+    parameter_string = "min : ";
     break;
   case ACCC_REDUCTION_bitand:
-    parameter_string = "$: ";
+    parameter_string = "& : ";
     break;
   case ACCC_REDUCTION_bitor:
-    parameter_string = "|: ";
+    parameter_string = "| : ";
     break;
   case ACCC_REDUCTION_bitxor:
-    parameter_string = "^: ";
+    parameter_string = "^ : ";
     break;
   case ACCC_REDUCTION_logand:
-    parameter_string = "&&: ";
+    parameter_string = "&& : ";
     break;
   case ACCC_REDUCTION_logor:
-    parameter_string = "||: ";
+    parameter_string = "|| : ";
+    break;
+  case ACCC_REDUCTION_fort_and:
+    parameter_string = ".and. : ";
+    break;
+  case ACCC_REDUCTION_fort_or:
+    parameter_string = ".or. : ";
+    break;
+  case ACCC_REDUCTION_fort_eqv:
+    parameter_string = ".eqv. : ";
+    break;
+  case ACCC_REDUCTION_fort_neqv:
+    parameter_string = ".neqv. : ";
+    break;
+  case ACCC_REDUCTION_fort_iand:
+    parameter_string = "iand : ";
+    break;
+  case ACCC_REDUCTION_fort_ior:
+    parameter_string = "ior : ";
+    break;
+  case ACCC_REDUCTION_fort_ieor:
+    parameter_string = "ieor : ";
     break;
   default:;
   };
@@ -475,7 +509,7 @@ std::string OpenACCReductionClause::toString() {
 
 std::string OpenACCVectorClause::toString() {
 
-  std::string result = "vector (";
+  std::string result = "vector";
   std::string parameter_string = "";
   OpenACCVectorClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -486,9 +520,9 @@ std::string OpenACCVectorClause::toString() {
   };
   parameter_string += this->expressionToString();
   if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 1);
+    result += " ";
   }
 
   return result;
@@ -496,10 +530,10 @@ std::string OpenACCVectorClause::toString() {
 
 std::string OpenACCWaitClause::toString() {
 
-  std::string result = "wait ";
+  std::string result = "wait";
   std::string parameter_string = "";
   if (this->getExpressions()->size() != 0) {
-    parameter_string += "(";
+    result += "(";
     std::string devnum = this->getDevnum();
     if (devnum != "") {
       parameter_string += "devnum: " + devnum + ": ";
@@ -509,11 +543,9 @@ std::string OpenACCWaitClause::toString() {
     };
 
     parameter_string += this->expressionToString();
-    if (parameter_string.size() > 0) {
-      result += parameter_string + ") ";
-    } else {
-      result = result.substr(0, result.size() - 1);
-    }
+    result += parameter_string + ") ";
+  } else {
+    result += " ";
   }
 
   return result;
@@ -521,7 +553,7 @@ std::string OpenACCWaitClause::toString() {
 
 std::string OpenACCWorkerClause::toString() {
 
-  std::string result = "worker (";
+  std::string result = "worker";
   std::string parameter_string = "";
   OpenACCWorkerClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -532,9 +564,9 @@ std::string OpenACCWorkerClause::toString() {
   };
   parameter_string += this->expressionToString();
   if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 1);
+    result += " ";
   }
 
   return result;

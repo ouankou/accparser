@@ -165,7 +165,8 @@ data_clause_list
    ;
 
 data_clauses
-   : attach_clause
+   : async_clause
+   | attach_clause
    | copy_clause
    | copyin_clause
    | copyout_clause
@@ -175,6 +176,7 @@ data_clauses
    | if_clause
    | no_create_clause
    | present_clause
+   | wait_clause
    ;
 
 declare_directive
@@ -210,6 +212,7 @@ fortran_paired_directive
    | end_host_data_directive
    | end_kernels_directive
    | end_kernels_loop_directive
+   | end_loop_directive
    | end_parallel_directive
    | end_parallel_loop_directive
    | end_serial_directive
@@ -234,6 +237,10 @@ end_kernels_directive
 
 end_kernels_loop_directive
    : kernels_loop_directive
+   ;
+
+end_loop_directive
+   : loop_directive
    ;
 
 end_parallel_directive
@@ -652,12 +659,12 @@ collapse_clause
    ;
 
 copy_clause
-   : COPY LEFT_PAREN var_list RIGHT_PAREN
+   : (PCOPY | PRESENT_OR_COPY | COPY) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 copyin_clause
-   : COPYIN LEFT_PAREN var_list RIGHT_PAREN
-   | COPYIN LEFT_PAREN copyin_clause_modifier COLON var_list RIGHT_PAREN
+   : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN copyin_clause_modifier COLON var_list RIGHT_PAREN
    ;
 
 copyin_clause_modifier
@@ -665,12 +672,12 @@ copyin_clause_modifier
    ;
 
 copyin_no_modifier_clause
-   : COPYIN LEFT_PAREN var_list RIGHT_PAREN
+   : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 copyout_clause
-   : COPYOUT LEFT_PAREN var_list RIGHT_PAREN
-   | COPYOUT LEFT_PAREN copyout_clause_modifier COLON var_list RIGHT_PAREN
+   : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN copyout_clause_modifier COLON var_list RIGHT_PAREN
    ;
 
 copyout_clause_modifier
@@ -678,12 +685,12 @@ copyout_clause_modifier
    ;
 
 copyout_no_modifier_clause
-   : COPYOUT LEFT_PAREN var_list RIGHT_PAREN
+   : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 create_clause
-   : CREATE LEFT_PAREN var_list RIGHT_PAREN
-   | CREATE LEFT_PAREN create_clause_modifier COLON var_list RIGHT_PAREN
+   : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN create_clause_modifier COLON var_list RIGHT_PAREN
    ;
 
 create_clause_modifier
@@ -691,7 +698,7 @@ create_clause_modifier
    ;
 
 create_no_modifier_clause
-   : CREATE LEFT_PAREN var_list RIGHT_PAREN
+   : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
    ;
 
 default_clause
@@ -789,7 +796,7 @@ no_create_clause
    ;
 
 num_gangs_clause
-   : NUM_GANGS LEFT_PAREN int_expr RIGHT_PAREN
+   : NUM_GANGS LEFT_PAREN int_expr_list RIGHT_PAREN
    ;
 
 num_workers_clause
@@ -814,6 +821,7 @@ reduction_clause
 
 reduction_operator
    : ADD
+   | SUB
    | MUL
    | MAX
    | MIN
@@ -822,6 +830,13 @@ reduction_operator
    | BITXOR
    | LOGAND
    | LOGOR
+   | FORT_AND
+   | FORT_OR
+   | FORT_EQV
+   | FORT_NEQV
+   | FORT_IAND
+   | FORT_IOR
+   | FORT_IEOR
    ;
 
 self_clause

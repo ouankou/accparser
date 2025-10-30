@@ -47,6 +47,9 @@ protected:
   // the clause position in the vector of clauses in original order
   int clause_position = -1;
 
+  // Store original keyword text for alias preservation (e.g., pcreate vs create)
+  std::string original_keyword = "";
+
   /* consider this is a struct of array, i.e.
    * the expression/localtionLine/locationColumn are the same index are one
    * record for an expression and its location
@@ -64,6 +67,9 @@ public:
   void setClausePosition(int _clause_position) {
     clause_position = _clause_position;
   };
+
+  void setOriginalKeyword(std::string keyword) { original_keyword = keyword; };
+  std::string getOriginalKeyword() { return original_keyword; };
 
   // a list of expressions or variables that are language-specific for the
   // clause, accparser does not parse them, instead, it only stores them as
@@ -84,6 +90,12 @@ class OpenACCDirective : public ACC_SourceLocation {
 protected:
   OpenACCDirectiveKind kind;
   OpenACCBaseLang lang;
+
+  /* Flag to control whether clauses should be merged/normalized.
+   * When true (default), multiple clauses of the same type are merged.
+   * When false, clauses are preserved separately for exact round-trip parsing.
+   */
+  static bool enable_clause_merging;
 
   /* The vector is used to store the pointers of clauses in original order.
    * While unparsing, the generated pragma keeps the clauses in the same order
@@ -160,6 +172,10 @@ public:
       : ACC_SourceLocation(_line, _col), kind(k), lang(_lang){};
 
   OpenACCDirectiveKind getKind() { return kind; };
+
+  // Static methods to control clause merging behavior
+  static void setClauseMerging(bool enable) { enable_clause_merging = enable; }
+  static bool getClauseMerging() { return enable_clause_merging; }
 
   std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *getAllClauses() {
     return &clauses;

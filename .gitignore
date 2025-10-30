@@ -34,3 +34,6 @@
 # Build
 build/
 Makefile.in
+
+# Downloaded dependencies
+antlr-4.10-complete.jar

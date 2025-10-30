@@ -1,1 +1,0 @@
-#pragma acc atomic 

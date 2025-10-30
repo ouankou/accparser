@@ -193,52 +193,52 @@ COLLAPSE
    : 'collapse' -> pushMode (expr_clause)
    ;
 
+PCOPY
+   : 'pcopy' -> pushMode (expr_clause)
+   ;
+
+PRESENT_OR_COPY
+   : 'present_or_copy' -> pushMode (expr_clause)
+   ;
+
 COPY
    : 'copy' -> pushMode (expr_clause)
    ;
 
-PCOPY
-   : 'pcopy' -> type (COPY) , pushMode (expr_clause)
+PCOPYIN
+   : 'pcopyin' -> pushMode (copyin_clause)
    ;
 
-PRESENT_OR_COPY
-   : 'present_or_copy' -> type (COPY) , pushMode (expr_clause)
+PRESENT_OR_COPYIN
+   : 'present_or_copyin' -> pushMode (copyin_clause)
    ;
 
 COPYIN
    : 'copyin' -> pushMode (copyin_clause)
    ;
 
-PCOPYIN
-   : 'pcopyin' -> type (COPYIN) , pushMode (copyin_clause)
+PCOPYOUT
+   : 'pcopyout' -> pushMode (copyout_clause)
    ;
 
-PRESENT_OR_COPYIN
-   : 'present_or_copyin' -> type (COPYIN) , pushMode (copyin_clause)
+PRESENT_OR_COPYOUT
+   : 'present_or_copyout' -> pushMode (copyout_clause)
    ;
 
 COPYOUT
    : 'copyout' -> pushMode (copyout_clause)
    ;
 
-PCOPYOUT
-   : 'pcopyout' -> type (COPYOUT) , pushMode (copyout_clause)
+PCREATE
+   : 'pcreate' -> pushMode (create_clause)
    ;
 
-PRESENT_OR_COPYOUT
-   : 'present_or_copyout' -> type (COPYOUT) , pushMode (copyout_clause)
+PRESENT_OR_CREATE
+   : 'present_or_create' -> pushMode (create_clause)
    ;
 
 CREATE
    : 'create' -> pushMode (create_clause)
-   ;
-
-PCREATE
-   : 'pcreate' -> type (CREATE) , pushMode (create_clause)
-   ;
-
-PRESENT_OR_CREATE
-   : 'present_or_create' -> type (CREATE) , pushMode (create_clause)
    ;
 
 DEFAULT
@@ -273,6 +273,10 @@ DEVICE_TYPE
    : 'device_type' -> pushMode (expr_clause)
    ;
 
+DTYPE
+   : 'dtype' -> type (DEVICE_TYPE) , pushMode (expr_clause)
+   ;
+
 DEVICEPTR
    : 'deviceptr' -> pushMode (expr_clause)
    ;
@@ -289,7 +293,7 @@ GANG
    : 'gang' [\p{White_Space}]*
    {
   if (_input->LA(1) == '(')
-    pushMode(expr_clause);
+    pushMode(gang_clause);
 }
    ;
 
@@ -326,7 +330,7 @@ NUM
    ;
 
 NUM_GANGS
-   : 'num_gangs' -> pushMode (expr_clause)
+   : 'num_gangs' -> pushMode (gang_clause)
    ;
 
 NUM_WORKERS
@@ -362,7 +366,7 @@ SEQ
    ;
 
 TILE
-   : 'tile' -> pushMode (expr_clause)
+   : 'tile' -> pushMode (gang_clause)
    ;
 
 USE_DEVICE
@@ -778,6 +782,18 @@ ADD
 }
    ;
 
+SUB
+   : '-' [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
 MUL
    : '*' [\p{White_Space}]*
    {
@@ -864,6 +880,90 @@ LOGAND
 
 LOGOR
    : '||' [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_AND
+   : ('.' [Aa] [Nn] [Dd] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_OR
+   : ('.' [Oo] [Rr] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_EQV
+   : ('.' [Ee] [Qq] [Vv] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_NEQV
+   : ('.' [Nn] [Ee] [Qq] [Vv] '.') [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_IAND
+   : [Ii] [Aa] [Nn] [Dd] [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_IOR
+   : [Ii] [Oo] [Rr] [\p{White_Space}]*
+   {
+  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
+      (_input->LA(1) != ':')) {
+    colon_count = 1;
+    more();
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+FORT_IEOR
+   : [Ii] [Ee] [Oo] [Rr] [\p{White_Space}]*
    {
   if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
       (_input->LA(1) != ':')) {
@@ -1035,6 +1135,41 @@ WORKER_LINE_END
    : [\n\r] -> skip
    ;
 
+mode gang_clause;
+GANG_LEFT_PAREN
+   : '(' [\p{White_Space}]*
+   {
+  setType(LEFT_PAREN);
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+}
+   ;
+
+GANG_RIGHT_PAREN
+   : ')' -> type (RIGHT_PAREN) , popMode
+   ;
+
+GANG_COMMA
+   : ',' [\p{White_Space}]*
+   {
+  skip();
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+}
+   ;
+
+GANG_BLANK
+   : [\p{White_Space}]+ -> skip
+   ;
+
+GANG_LINE_END
+   : [\n\r] -> skip
+   ;
+
 mode expr_clause;
 EXPR_LEFT_PAREN
    : '(' [\p{White_Space}]*
@@ -1139,11 +1274,14 @@ EXPRESSION_CHAR
     break;
   }
   case ':': {
-    if (_input->LA(2) != ':' && colon_count == 0 && bracket_count == 0) {
+    // Only end expression on colon if we're NOT inside any delimiters (parentheses OR brackets)
+    if (_input->LA(2) != ':' && colon_count == 0 && bracket_count == 0 && parenthesis_local_count == 0) {
       colon_count = 0;
       setType(EXPR);
       popMode();
     } else {
+      // Track colon count for clause modifier separators (e.g., "readonly:")
+      // Only track when NOT inside brackets (C array slices [1:10])
       if (bracket_count == 0) {
         if (colon_count == 0) {
           colon_count += 1;

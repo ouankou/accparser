@@ -7,7 +7,7 @@
 
 extern OpenACCDirective *current_directive;
 
-extern std::vector<std::pair<std::string, int>> *
+extern std::vector<std::pair<std::string, int>>
 preProcess(std::ifstream &input_file);
 
 static OpenACCDirective *generateOpenACCIR(std::string source) {
@@ -82,14 +82,13 @@ int main(int argc, char **argv) {
     return -1;
   };
 
-  std::vector<std::pair<std::string, int>> *acc_pragmas =
-      preProcess(input_file);
+  auto acc_pragmas = preProcess(input_file);
 
   // parse the preprocessed inputs
-  for (unsigned int i = 0; i < acc_pragmas->size(); i++) {
-    input_pragma = acc_pragmas->at(i).first;
+  for (const auto &pragma : acc_pragmas) {
+    input_pragma = pragma.first;
     std::cout << "======================================\n";
-    std::cout << "Line: " << acc_pragmas->at(i).second << "\n";
+    std::cout << "Line: " << pragma.second << "\n";
     std::cout << "GIVEN INPUT: " << input_pragma << "\n";
 
     OpenACCDirective *openACCAST = generateOpenACCIR(input_pragma);
@@ -100,7 +99,7 @@ int main(int argc, char **argv) {
     std::cout << "======================================\n";
     input_pragma.clear();
     output_pragma.clear();
-  };
+  }
 
   input_file.close();
 
