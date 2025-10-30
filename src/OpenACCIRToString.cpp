@@ -445,55 +445,55 @@ std::string OpenACCReductionClause::toString() {
   OpenACCReductionClauseOperator reduction_operator = this->getOperator();
   switch (reduction_operator) {
   case ACCC_REDUCTION_add:
-    parameter_string = "+:";
+    parameter_string = "+ : ";
     break;
   case ACCC_REDUCTION_sub:
-    parameter_string = "-:";
+    parameter_string = "- : ";
     break;
   case ACCC_REDUCTION_mul:
-    parameter_string = "*:";
+    parameter_string = "* : ";
     break;
   case ACCC_REDUCTION_max:
-    parameter_string = "max:";
+    parameter_string = "max : ";
     break;
   case ACCC_REDUCTION_min:
-    parameter_string = "min:";
+    parameter_string = "min : ";
     break;
   case ACCC_REDUCTION_bitand:
-    parameter_string = "&:";
+    parameter_string = "& : ";
     break;
   case ACCC_REDUCTION_bitor:
-    parameter_string = "|:";
+    parameter_string = "| : ";
     break;
   case ACCC_REDUCTION_bitxor:
-    parameter_string = "^:";
+    parameter_string = "^ : ";
     break;
   case ACCC_REDUCTION_logand:
-    parameter_string = "&&:";
+    parameter_string = "&& : ";
     break;
   case ACCC_REDUCTION_logor:
-    parameter_string = "||:";
+    parameter_string = "|| : ";
     break;
   case ACCC_REDUCTION_fort_and:
-    parameter_string = ".and.:";
+    parameter_string = ".and. : ";
     break;
   case ACCC_REDUCTION_fort_or:
-    parameter_string = ".or.:";
+    parameter_string = ".or. : ";
     break;
   case ACCC_REDUCTION_fort_eqv:
-    parameter_string = ".eqv.:";
+    parameter_string = ".eqv. : ";
     break;
   case ACCC_REDUCTION_fort_neqv:
-    parameter_string = ".neqv.:";
+    parameter_string = ".neqv. : ";
     break;
   case ACCC_REDUCTION_fort_iand:
-    parameter_string = "iand:";
+    parameter_string = "iand : ";
     break;
   case ACCC_REDUCTION_fort_ior:
-    parameter_string = "ior:";
+    parameter_string = "ior : ";
     break;
   case ACCC_REDUCTION_fort_ieor:
-    parameter_string = "ieor:";
+    parameter_string = "ieor : ";
     break;
   default:;
   };

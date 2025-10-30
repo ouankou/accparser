@@ -103,6 +103,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Normalize Fortran pragma whitespace to match clang-format style
+normalize_fortran_pragma() {
+    local pragma="$1"
+    echo "$pragma" | \
+        sed 's/,\([^[:space:]]\)/, \1/g' | \
+        sed 's/\([^[:space:]]\):/\1 :/g' | \
+        sed 's/:\([^[:space:]]\)/: \1/g' | \
+        sed 's/\[\([^[:space:]]\)/[ \1/g' | \
+        sed 's/\([^[:space:]]\)\]/\1 ]/g' | \
+        sed 's/[[:space:]][[:space:]]*/ /g' | \
+        sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
 # Statistics
 total_files=0
 files_with_pragmas=0
@@ -266,8 +279,8 @@ process_file() {
     # Process each pragma
     for pragma in "${pragmas[@]}"; do
         if [ $is_fortran -eq 1 ]; then
-            # Fortran: normalize by removing commas between clauses, converting to lowercase, and removing extra spaces
-            local original_normalized=$(echo "$pragma" | sed 's/),[[:space:]][[:space:]]*/) /g' | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/ /g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # Fortran: normalize whitespace to match clang-format style, then lowercase
+            local original_normalized=$(normalize_fortran_pragma "$pragma" | tr '[:upper:]' '[:lower:]')
 
             # Round-trip through accparser
             if ! roundtrip=$("$ROUNDTRIP_BIN" "$pragma" 2>/dev/null); then
@@ -278,7 +291,7 @@ process_file() {
             fi
 
             # Normalize round-tripped output
-            local roundtrip_normalized=$(echo "$roundtrip" | sed 's/),[[:space:]][[:space:]]*/) /g' | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/ /g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            local roundtrip_normalized=$(normalize_fortran_pragma "$roundtrip" | tr '[:upper:]' '[:lower:]')
 
             # Compare
             if [ "$original_normalized" = "$roundtrip_normalized" ]; then
