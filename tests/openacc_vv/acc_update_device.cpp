@@ -1,0 +1,14 @@
+#pragma acc enter data copyin(devtest[0:1])
+#pragma acc parallel
+#pragma acc data copyout(c[0:n]) create(a[0:n], b[0:n])
+#pragma acc parallel
+#pragma acc loop
+#pragma acc enter data copyin(devtest[0:1])
+#pragma acc parallel
+#pragma acc data copyout(c[0:n]) copyin(a[0:n], b[0:n])
+#pragma acc parallel
+#pragma acc loop
+#pragma acc parallel
+#pragma acc loop
+#pragma acc parallel
+#pragma acc loop

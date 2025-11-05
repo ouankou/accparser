@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04]
-        llvm: [17, 18, 19, 20]
+        llvm: [17, 18, 19, 20, 21]
 
     runs-on: ${{ matrix.os }}
     env:
@@ -27,7 +27,7 @@ jobs:
 
     - name: Add LLVM repository key
       run: |
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm-snapshot.asc > /dev/null
 
     - name: Add LLVM repository on Ubuntu 24.04
       if: ${{ matrix.os == 'ubuntu-24.04' }}
@@ -46,22 +46,20 @@ jobs:
     - name: Build
       run: |
         cd $GITHUB_WORKSPACE/
-        git submodule update --init
         mkdir build
         cd build
         cmake ${CMAKE_OPTIONS} -DCMAKE_CXX_FLAGS=${CXX_FLAGS} ..
         make
 
-    - name: Test
+    - name: Run built-in tests
       run: |
         cd $GITHUB_WORKSPACE/build
-        make test
+        ctest -E "^openacc_vv_" --output-on-failure
 
-    - name: OpenACCV-V Comprehensive Test
+    - name: Run OpenACC VV tests
       run: |
-        cd $GITHUB_WORKSPACE
-        chmod +x test_openacc_vv.sh
-        ./test_openacc_vv.sh
+        cd $GITHUB_WORKSPACE/build
+        ctest -R "^openacc_vv_" --output-on-failure
 
   build-gnu:
     strategy:
@@ -91,20 +89,18 @@ jobs:
     - name: Build
       run: |
         cd $GITHUB_WORKSPACE/
-        git submodule update --init
         mkdir build
         cd build
         cmake ${CMAKE_OPTIONS} -DCMAKE_CXX_FLAGS=${CXX_FLAGS} ..
         make
 
-    - name: Test
+    - name: Run built-in tests
       run: |
         cd $GITHUB_WORKSPACE/build
-        make test
+        ctest -E "^openacc_vv_" --output-on-failure
 
-    - name: OpenACCV-V Comprehensive Test
+    - name: Run OpenACC VV tests
       run: |
-        cd $GITHUB_WORKSPACE
-        chmod +x test_openacc_vv.sh
-        ./test_openacc_vv.sh
+        cd $GITHUB_WORKSPACE/build
+        ctest -R "^openacc_vv_" --output-on-failure
 

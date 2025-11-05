@@ -1,0 +1,6 @@
+#pragma acc data copyin(a[0:10*n], b[0:10*n]) copy(min[0:10])
+#pragma acc parallel loop gang private(temp)
+#pragma acc loop vector reduction(min:temp)
+#pragma acc data copyin(a[0:25*n], b[0:25*n]) copy(minimums[0:25])
+#pragma acc parallel loop gang private(reduced)
+#pragma acc loop vector reduction(min:reduced)

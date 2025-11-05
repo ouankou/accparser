@@ -1,0 +1,6 @@
+#pragma acc data copyin(a[0:10*n]) copy(b[0:10])
+#pragma acc parallel loop private(temp)
+#pragma acc loop vector reduction(|:temp)
+#pragma acc data copyin(a[0:25*n]) copy(b[0:25])
+#pragma acc parallel loop private(reduced)
+#pragma acc loop vector reduction(|:reduced)
