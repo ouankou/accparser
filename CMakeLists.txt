@@ -13,7 +13,15 @@ set(ACCPARSER_VERSION_MAJOR 0)
 set(ACCPARSER_VERSION_MINOR 1)
 set(ACCPARSER_VERSION ${ACCPARSER_VERSION_MAJOR}.${ACCPARSER_VERSION_MINOR})
 
-find_program(NAMES antlr4)
+find_program(ANTLR4_EXECUTABLE NAMES antlr4)
+if(NOT ANTLR4_EXECUTABLE)
+    message(FATAL_ERROR "antlr4 executable not found. Please install ANTLR4:\n"
+                        "  Ubuntu/Debian: sudo apt-get install antlr4\n"
+                        "  macOS: brew install antlr\n"
+                        "  Or download from: https://www.antlr.org/download.html")
+endif()
+
+message(STATUS "Found ANTLR4: ${ANTLR4_EXECUTABLE}")
 
 add_subdirectory(tests)
 enable_testing()
@@ -38,7 +46,7 @@ set(ACCPARSER_GRAMMAR_TARGET_FILES
 add_custom_command(OUTPUT
     ${ACCPARSER_GRAMMAR_TARGET_FILES}
     COMMAND
-    antlr4 ${ACCPARSER_GRAMMAR_FILES} -Werror -Dlanguage=Cpp -listener -visitor -o ${CMAKE_CURRENT_BINARY_DIR}
+    ${ANTLR4_EXECUTABLE} ${ACCPARSER_GRAMMAR_FILES} -Werror -Dlanguage=Cpp -listener -visitor -o ${CMAKE_CURRENT_BINARY_DIR}
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS "${ACCPARSER_GRAMMAR_FILES}"
     )
