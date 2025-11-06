@@ -1,0 +1,5 @@
+#pragma acc enter data copyin(data.a[0:n], data.b[0:n])
+#pragma acc enter data copyin(data) attach(data.a, data.b)
+#pragma acc parallel loop default(present)
+#pragma acc exit data copyout(data.a[0:n], data.b[0:n])
+#pragma acc exit data copyout(data)

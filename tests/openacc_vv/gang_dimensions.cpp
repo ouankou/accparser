@@ -1,0 +1,7 @@
+#pragma acc parallel num_gangs(n,n)
+#pragma acc loop gang(dim:2)
+#pragma acc loop gang(dim:1)
+#pragma acc parallel num_gangs(n,n,n)
+#pragma acc loop gang(dim:3)
+#pragma acc loop gang(dim:2)
+#pragma acc loop gang(dim:1)
