@@ -2,8 +2,6 @@
 #include <iostream>
 #include <regex>
 
-extern OpenACCDirective *current_directive;
-extern OpenACCDirective *parseOpenACC(std::string);
 extern std::vector<std::pair<std::string, int>>
 preProcess(std::ifstream &input_file);
 
@@ -69,13 +67,17 @@ int main(int argc, char **argv) {
 
   auto acc_pragmas = preProcess(input_file);
 
-  // parse the preprocessed inputs
   for (const auto &pragma : acc_pragmas) {
     acc_ast = parseOpenACC(pragma.first);
     acc_ast_list->push_back(acc_ast);
   }
 
   savePragmaList(acc_ast_list, filename_string);
+
+  for (OpenACCDirective *directive : *acc_ast_list) {
+    delete directive;
+  }
+  delete acc_ast_list;
 
   input_file.close();
 

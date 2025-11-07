@@ -23,10 +23,6 @@ endif()
 
 message(STATUS "Found ANTLR4: ${ANTLR4_EXECUTABLE}")
 
-add_subdirectory(tests)
-enable_testing()
-set(CMAKE_CTEST_ARGUMENTS --output-on-failure)
-
 set(ACCPARSER_GRAMMAR_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acclexer.g4
     ${CMAKE_CURRENT_SOURCE_DIR}/src/accparser.g4
@@ -64,26 +60,19 @@ target_include_directories(accparser PUBLIC
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
-target_include_directories(accparser SYSTEM PUBLIC
-    /usr/include/antlr4-runtime
-    )
 
-add_executable(acc_demo.out
-    utils/acc_demo.cpp
-    tests/preprocess.cpp)
-add_dependencies(acc_demo.out accparser)
-target_link_libraries(acc_demo.out
-    accparser
-    antlr4-runtime
-    )
+if(NOT TARGET antlr4_shared AND NOT TARGET antlr4_static)
+    find_path(ANTLR4_INCLUDE_DIR antlr4-runtime.h
+        PATHS /usr/include/antlr4-runtime /usr/local/include/antlr4-runtime
+        DOC "ANTLR4 C++ runtime include directory")
+    if(ANTLR4_INCLUDE_DIR)
+        target_include_directories(accparser SYSTEM PUBLIC ${ANTLR4_INCLUDE_DIR})
+    endif()
+endif()
 
-add_executable(acc_roundtrip.out
-    utils/acc_roundtrip.cpp)
-add_dependencies(acc_roundtrip.out accparser)
-target_link_libraries(acc_roundtrip.out
-    accparser
-    antlr4-runtime
-    )
+add_subdirectory(tests)
+enable_testing()
+set(CMAKE_CTEST_ARGUMENTS --output-on-failure)
 
 install(TARGETS accparser
         LIBRARY DESTINATION lib
