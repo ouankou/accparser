@@ -77,7 +77,15 @@ set(CMAKE_CTEST_ARGUMENTS --output-on-failure)
 install(TARGETS accparser
         LIBRARY DESTINATION lib
         )
+
+# Install public headers
+# OpenACCParser.h: Standalone parser interface (no ANTLR dependency)
+# OpenACCIR.h: AST node classes
+# OpenACCKinds.h: Enum definitions
+# OpenACCASTConstructor.h: ANTLR implementation (optional, for advanced use)
 install(FILES
+        src/OpenACCParser.h
         src/OpenACCIR.h
         src/OpenACCKinds.h
+        src/OpenACCASTConstructor.h
         DESTINATION include)

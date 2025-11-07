@@ -1,4 +1,13 @@
-#include "OpenACCIR.h"
+/**
+ * @file OpenACCASTConstructor.h
+ * @brief ANTLR-based OpenACC parser implementation
+ *
+ * This header contains the ANTLR tree walker implementation that builds
+ * OpenACCIR AST from ANTLR parse trees. The parser interface (parseOpenACC)
+ * is declared in OpenACCParser.h to allow alternative parser implementations.
+ */
+
+#include "OpenACCParser.h"
 #include "accparserBaseListener.h"
 #include <atomic>
 
@@ -242,7 +251,3 @@ private:
   // across ANTLR versions and generator template changes.
   std::atomic<bool> isFortran_{false};
 };
-
-OpenACCDirective *parseOpenACC(std::string);
-
-std::string trimEnclosingWhiteSpace(std::string);

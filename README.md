@@ -31,6 +31,35 @@ make
 
 It will produce a library `libaccparser.so` and an executable `acc_demo.out`.
 
+## Header Organization
+
+accparser provides two levels of headers for different use cases:
+
+### For Standard Usage (Recommended)
+```cpp
+#include "OpenACCParser.h"  // Standalone parser interface
+```
+- No ANTLR dependencies required
+- Suitable for external parser implementations
+- Provides `parseOpenACC()` and C API functions
+
+### For ANTLR-based Development
+```cpp
+#include "OpenACCASTConstructor.h"  // ANTLR implementation details
+```
+- Requires ANTLR4 runtime
+- For extending the ANTLR-based parser
+- Includes `OpenACCParser.h` transitively
+
+### For AST Manipulation Only
+```cpp
+#include "OpenACCIR.h"  // AST node classes
+```
+- No parser dependencies
+- For working with existing AST structures
+
+This separation allows external projects to provide alternative parser implementations while reusing the OpenACC IR classes.
+
 ## Run
 
 Given a test file `foo.txt` with the following content to try accparser.
