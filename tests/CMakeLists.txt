@@ -1,5 +1,8 @@
+if(NOT TARGET accparser)
+    message(FATAL_ERROR "accparser target not found. Ensure accparser library is built before adding tests subdirectory.")
+endif()
+
 enable_testing()
-add_subdirectory(builtin)
 
 add_compile_options(-Wall)
 
@@ -7,30 +10,28 @@ add_executable(acc_tester.out
     acc_tester.cpp
     preprocess.cpp)
 add_dependencies(acc_tester.out accparser)
-target_link_libraries(acc_tester.out
-    accparser
-    antlr4-runtime
-    )
+target_link_libraries(acc_tester.out accparser)
+
+add_executable(acc_roundtrip.out
+    acc_roundtrip.cpp)
+add_dependencies(acc_roundtrip.out accparser)
+target_link_libraries(acc_roundtrip.out accparser)
 
 add_executable(lang_flag_test.out
     lang_flag_test.cpp)
 add_dependencies(lang_flag_test.out accparser)
-target_link_libraries(lang_flag_test.out
-    accparser
-    antlr4-runtime
-)
+target_link_libraries(lang_flag_test.out accparser)
 
 add_test(NAME lang_flag_test COMMAND lang_flag_test.out)
 
 add_executable(compat_caller.out
     compat_caller.cpp)
 add_dependencies(compat_caller.out accparser)
-target_link_libraries(compat_caller.out
-    accparser
-    antlr4-runtime
-)
+target_link_libraries(compat_caller.out accparser)
 
 add_test(NAME compat_caller COMMAND compat_caller.out)
+
+add_subdirectory(builtin)
 
 # Register OpenACC VV extracted pragma files as CTest tests
 file(GLOB_RECURSE OPENACC_VV_FILES

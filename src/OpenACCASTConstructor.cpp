@@ -778,17 +778,10 @@ OpenACCDirective *parseOpenACC(std::string source) {
   current_directive = NULL;
   antlr4::tree::ParseTree *tree = parser.acc();
 
-  antlr4::tree::ParseTreeWalker *walker = new antlr4::tree::ParseTreeWalker();
-  // Create a listener instance so we can configure it (and avoid relying on
-  // grammar-injected variables). The listener is owned locally and will be
-  // automatically destroyed when it goes out of scope, preventing leaks if an
-  // exception is thrown during walking.
+  antlr4::tree::ParseTreeWalker walker;
   std::unique_ptr<OpenACCIRConstructor> listener =
       std::make_unique<OpenACCIRConstructor>();
-  // default isFortran_ is false already; if you want to force Fortran/C mode
-  // externally, call listener->setFortran(true/false) here before walking.
-  walker->walk(listener.get(), tree);
-  assert(current_directive != NULL);
+  walker.walk(listener.get(), tree);
 
   return current_directive;
 }
