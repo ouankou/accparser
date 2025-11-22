@@ -28,11 +28,22 @@ std::string OpenACCDirective::generatePragmaString(std::string prefix,
 
   std::vector<OpenACCClause *> *clauses = this->getClausesInOriginalOrder();
   if (clauses->size() != 0) {
-    std::vector<OpenACCClause *>::iterator iter;
-    for (iter = clauses->begin(); iter != clauses->end(); iter++) {
-      result += (*iter)->toString();
+    bool first = true;
+    for (auto *clause : *clauses) {
+      std::string clause_str = clause->toString();
+      // Strip trailing whitespace the clause printer may have added.
+      while (!clause_str.empty() && std::isspace(clause_str.back())) {
+        clause_str.pop_back();
+      }
+      if (clause_str.empty()) {
+        continue;
+      }
+      if (!first) {
+        result += " ";
+      }
+      result += clause_str;
+      first = false;
     }
-    result = result.substr(0, result.size() - 1);
   }
   result += ending_symbol;
 
@@ -85,9 +96,9 @@ std::string OpenACCDirective::toString() {
     break;
   case ACCD_routine:
     result += "routine ";
-    if (((OpenACCRoutineDirective *)this)->getName() != "")
+    if (!((OpenACCRoutineDirective *)this)->getName().empty()) {
       result += "(" + ((OpenACCRoutineDirective *)this)->getName() + ") ";
-    ;
+    }
     break;
   case ACCD_serial:
     result += "serial ";
@@ -116,12 +127,13 @@ std::string OpenACCClause::expressionToString() {
 
   std::string result;
   std::vector<std::string> *expr = this->getExpressions();
-  if (expr != NULL) {
-    std::vector<std::string>::iterator it;
-    for (it = expr->begin(); it != expr->end(); it++) {
-      result += *it + ", ";
-    };
-    result = result.substr(0, result.size() - 2);
+  if (expr != NULL && !expr->empty()) {
+    for (auto it = expr->begin(); it != expr->end(); ++it) {
+      if (it != expr->begin()) {
+        result += ", ";
+      }
+      result += *it;
+    }
   }
 
   return result;
@@ -133,69 +145,67 @@ std::string OpenACCClause::toString() {
 
   switch (this->getKind()) {
   case ACCC_async:
-    result += "async ";
-    break;
+    return static_cast<OpenACCAsyncClause *>(this)->OpenACCAsyncClause::toString();
   case ACCC_attach:
-    result += "attach ";
-    break;
+    return static_cast<OpenACCAttachClause *>(this)
+        ->OpenACCAttachClause::toString();
   case ACCC_auto:
     result += "auto ";
     break;
   case ACCC_bind:
-    result += "bind ";
-    break;
+    return static_cast<OpenACCBindClause *>(this)->OpenACCBindClause::toString();
   case ACCC_capture:
     result += "capture ";
     break;
-  case ACCC_collapse:
-    result += "collapse ";
-    break;
-  case ACCC_copy:
-    if (!original_keyword.empty()) {
-      result += original_keyword + " ";
-    } else {
-      result += "copy ";
-    }
-    break;
-  case ACCC_default_async:
-    result += "default_async ";
-    break;
   case ACCC_delete:
-    result += "delete ";
-    break;
+    return static_cast<OpenACCDeleteClause *>(this)
+        ->OpenACCDeleteClause::toString();
   case ACCC_detach:
-    result += "detach ";
-    break;
+    return static_cast<OpenACCDetachClause *>(this)
+        ->OpenACCDetachClause::toString();
+  case ACCC_collapse:
+    return static_cast<OpenACCCollapseClause *>(this)
+        ->OpenACCCollapseClause::toString();
+  case ACCC_copy:
+    return static_cast<OpenACCCopyClause *>(this)->OpenACCCopyClause::toString();
+  case ACCC_copyin:
+    return static_cast<OpenACCCopyinClause *>(this)
+        ->OpenACCCopyinClause::toString();
+  case ACCC_copyout:
+    return static_cast<OpenACCCopyoutClause *>(this)
+        ->OpenACCCopyoutClause::toString();
+  case ACCC_create:
+    return static_cast<OpenACCCreateClause *>(this)
+        ->OpenACCCreateClause::toString();
+  case ACCC_default_async:
+    return static_cast<OpenACCDefaultAsyncClause *>(this)
+        ->OpenACCDefaultAsyncClause::toString();
   case ACCC_device:
-    result += "device ";
-    break;
+    return static_cast<OpenACCDeviceClause *>(this)->OpenACCDeviceClause::toString();
   case ACCC_device_num:
-    result += "device_num ";
-    break;
+    return static_cast<OpenACCDeviceNumClause *>(this)
+        ->OpenACCDeviceNumClause::toString();
   case ACCC_device_resident:
-    result += "device_resident ";
-    break;
+    return static_cast<OpenACCDeviceResidentClause *>(this)
+        ->OpenACCDeviceResidentClause::toString();
   case ACCC_device_type:
-    result += "device_type ";
-    break;
+    return static_cast<OpenACCDeviceTypeClause *>(this)
+        ->OpenACCDeviceTypeClause::toString();
   case ACCC_deviceptr:
-    result += "deviceptr ";
-    break;
+    return static_cast<OpenACCDeviceptrClause *>(this)
+        ->OpenACCDeviceptrClause::toString();
   case ACCC_finalize:
     result += "finalize ";
     break;
   case ACCC_firstprivate:
-    result += "firstprivate ";
-    break;
+    return static_cast<OpenACCFirstprivateClause *>(this)
+        ->OpenACCFirstprivateClause::toString();
   case ACCC_gang:
-    result += "gang ";
-    break;
+    return static_cast<OpenACCGangClause *>(this)->OpenACCGangClause::toString();
   case ACCC_host:
-    result += "host ";
-    break;
+    return static_cast<OpenACCHostClause *>(this)->OpenACCHostClause::toString();
   case ACCC_if:
-    result += "if ";
-    break;
+    return static_cast<OpenACCIfClause *>(this)->OpenACCIfClause::toString();
   case ACCC_if_present:
     result += "if_present ";
     break;
@@ -203,47 +213,44 @@ std::string OpenACCClause::toString() {
     result += "independent ";
     break;
   case ACCC_link:
-    result += "link ";
-    break;
+    return static_cast<OpenACCLinkClause *>(this)->OpenACCLinkClause::toString();
   case ACCC_nohost:
     result += "nohost ";
     break;
   case ACCC_no_create:
-    result += "no_create ";
-    break;
+    return static_cast<OpenACCNoCreateClause *>(this)
+        ->OpenACCNoCreateClause::toString();
   case ACCC_num_gangs:
-    result += "num_gangs ";
-    break;
+    return static_cast<OpenACCNumGangsClause *>(this)
+        ->OpenACCNumGangsClause::toString();
   case ACCC_num_workers:
-    result += "num_workers ";
-    break;
+    return static_cast<OpenACCNumWorkersClause *>(this)
+        ->OpenACCNumWorkersClause::toString();
   case ACCC_present:
-    result += "present ";
-    break;
+    return static_cast<OpenACCPresentClause *>(this)
+        ->OpenACCPresentClause::toString();
   case ACCC_private:
-    result += "private ";
-    break;
+    return static_cast<OpenACCPrivateClause *>(this)
+        ->OpenACCPrivateClause::toString();
   case ACCC_read:
     result += "read ";
     break;
   case ACCC_self:
-    result += "self ";
-    break;
+    return static_cast<OpenACCSelfClause *>(this)->OpenACCSelfClause::toString();
   case ACCC_seq:
     result += "seq ";
     break;
   case ACCC_tile:
-    result += "tile ";
-    break;
+    return static_cast<OpenACCTileClause *>(this)->OpenACCTileClause::toString();
   case ACCC_update:
     result += "update ";
     break;
   case ACCC_use_device:
-    result += "use_device ";
-    break;
+    return static_cast<OpenACCUseDeviceClause *>(this)
+        ->OpenACCUseDeviceClause::toString();
   case ACCC_vector_length:
-    result += "vector_length ";
-    break;
+    return static_cast<OpenACCVectorLengthClause *>(this)
+        ->OpenACCVectorLengthClause::toString();
   case ACCC_wait:
     result += "wait ";
     break;
@@ -251,13 +258,13 @@ std::string OpenACCClause::toString() {
     result += "write ";
     break;
   case ACCC_vector:
-    result += "vector ";
-    break;
+    return static_cast<OpenACCVectorClause *>(this)->OpenACCVectorClause::toString();
   case ACCC_worker:
-    result += "worker ";
-    break;
+    return static_cast<OpenACCWorkerClause *>(this)->OpenACCWorkerClause::toString();
   default:
-    printf("The clause enum is not supported yet.\n");
+    std::cerr << "Unsupported OpenACC clause kind in toString(): "
+              << this->getKind() << std::endl;
+    assert(false && "Unsupported OpenACC clause kind in toString()");
   }
 
   std::string clause_string = "(";
@@ -274,20 +281,52 @@ std::string OpenACCClause::toString() {
   return result;
 };
 
-std::string OpenACCCacheDirective::expressionToString() {
+static std::string deviceTypeToString(OpenACCDeviceTypeKind kind) {
+  switch (kind) {
+  case ACCC_DEVICE_TYPE_host:
+    return "host";
+  case ACCC_DEVICE_TYPE_any:
+    return "any";
+  case ACCC_DEVICE_TYPE_multicore:
+    return "multicore";
+  case ACCC_DEVICE_TYPE_default:
+    return "default";
+  default:
+    return "";
+  }
+}
 
-  std::string result;
-  std::vector<std::string> *expr = this->getExpressions();
-  if (expr != NULL) {
-    std::vector<std::string>::iterator it;
-    for (it = expr->begin(); it != expr->end(); it++) {
-      result += *it + ", ";
-    };
-    result = result.substr(0, result.size() - 2);
+std::string OpenACCDeviceTypeClause::toString() {
+  std::string result = "device_type";
+  std::string clause_string = "";
+
+  bool first = true;
+  for (auto kind : device_types) {
+    std::string name = deviceTypeToString(kind);
+    if (name.empty()) {
+      continue;
+    }
+    if (!first) {
+      clause_string += ", ";
+    }
+    clause_string += name;
+    first = false;
+  }
+  for (const auto &raw : unknown_types) {
+    if (!first) {
+      clause_string += ", ";
+    }
+    clause_string += raw;
+    first = false;
   }
 
+  if (!clause_string.empty()) {
+    result += "(" + clause_string + ") ";
+  } else {
+    result += " ";
+  }
   return result;
-};
+}
 
 std::string OpenACCCacheDirective::toString() {
 
@@ -300,26 +339,56 @@ std::string OpenACCCacheDirective::toString() {
     break;
   default:;
   };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
+  parameter_string += this->varsToString();
+  if (!parameter_string.empty()) {
     result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
+    return result;
   }
+
+  // No vars: drop the trailing space when no modifier or vars were present.
+  result += " ";
 
   return result;
 };
 
+std::string OpenACCCollapseClause::toString() {
+
+  std::string result;
+  const auto &vals = getCounts();
+  if (vals.empty()) {
+    result = "collapse ";
+    return result;
+  }
+
+  for (const auto &val : vals) {
+    result += "collapse";
+    result += "(" + val + ") ";
+  }
+  return result;
+}
+
+std::string OpenACCAsyncClause::toString() {
+
+  std::string result = "async";
+  if (getModifier() == ACCC_ASYNC_expr && !getAsyncExpr().empty()) {
+    result += "(" + getAsyncExpr() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
 std::string OpenACCWaitDirective::expressionToString() {
 
   std::string result;
-  std::vector<std::string> *expr = this->getExpressions();
-  if (expr != NULL) {
-    std::vector<std::string>::iterator it;
-    for (it = expr->begin(); it != expr->end(); it++) {
-      result += *it + ", ";
-    };
-    result = result.substr(0, result.size() - 2);
+  std::vector<std::string> *expr = this->getAsyncIds();
+  if (expr != NULL && !expr->empty()) {
+    for (auto it = expr->begin(); it != expr->end(); ++it) {
+      if (it != expr->begin()) {
+        result += ", ";
+      }
+      result += *it;
+    }
   }
 
   return result;
@@ -329,7 +398,7 @@ std::string OpenACCWaitDirective::toString() {
 
   std::string result = "wait";
   std::string parameter_string = "";
-  if (this->getExpressions()->size() != 0) {
+  if (!this->getAsyncIds()->empty()) {
     result += "(";
     std::string devnum = this->getDevnum();
     if (devnum != "") {
@@ -347,10 +416,154 @@ std::string OpenACCWaitDirective::toString() {
   return result;
 };
 
+std::string OpenACCDefaultAsyncClause::toString() {
+
+  std::string result = "default_async";
+  if (!getAsyncExpr().empty()) {
+    result += "(" + getAsyncExpr() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCDeviceClause::toString() {
+
+  std::string result = "device";
+  const auto &devs = getDevices();
+  if (!devs.empty()) {
+    result += "(";
+    for (auto it = devs.begin(); it != devs.end(); ++it) {
+      result += *it;
+      if (it + 1 != devs.end()) {
+        result += ", ";
+      }
+    }
+    result += ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCIfClause::toString() {
+
+  std::string result = "if";
+  if (!getCondition().empty()) {
+    result += "(" + getCondition() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCDeviceNumClause::toString() {
+
+  std::string result = "device_num";
+  if (!getDeviceExpr().empty()) {
+    result += "(" + getDeviceExpr() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCGangClause::toString() {
+
+  std::string result = "gang";
+  if (getArgs().empty()) {
+    result += " ";
+    return result;
+  }
+
+  std::string parameter_string;
+  const auto &arg_list = getArgs();
+  for (auto it = arg_list.begin(); it != arg_list.end(); ++it) {
+    if (it != arg_list.begin()) {
+      parameter_string += ", ";
+    }
+    switch (it->kind) {
+    case ACCC_GANG_ARG_num:
+      parameter_string += "num:" + it->value;
+      break;
+    case ACCC_GANG_ARG_dim:
+      parameter_string += "dim:" + it->value;
+      break;
+    case ACCC_GANG_ARG_static:
+      parameter_string += "static:" + it->value;
+      break;
+    default:
+      parameter_string += it->value;
+      break;
+    }
+  }
+  result += "(" + parameter_string + ") ";
+  return result;
+}
+
+std::string OpenACCNumGangsClause::toString() {
+
+  std::string result = "num_gangs";
+  const auto &vals = getNums();
+  if (!vals.empty()) {
+    result += "(";
+    for (auto it = vals.begin(); it != vals.end(); ++it) {
+      result += *it;
+      if (it + 1 != vals.end())
+        result += ", ";
+    }
+    result += ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCNumWorkersClause::toString() {
+
+  std::string result = "num_workers";
+  if (!getNumExpr().empty()) {
+    result += "(" + getNumExpr() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCTileClause::toString() {
+
+  std::string result = "tile";
+  const auto &sizes = getTileSizes();
+  if (!sizes.empty()) {
+    result += "(";
+    for (auto it = sizes.begin(); it != sizes.end(); ++it) {
+      result += *it;
+      if (it + 1 != sizes.end()) {
+        result += ", ";
+      }
+    }
+    result += ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCBindClause::toString() {
+
+  std::string result = "bind";
+  if (!getBinding().empty()) {
+    result += "(" + getBinding() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
 std::string OpenACCCopyinClause::toString() {
 
   std::string keyword = original_keyword.empty() ? "copyin" : original_keyword;
-  std::string result = keyword + "(";
+  std::string result = keyword;
   std::string parameter_string = "";
   OpenACCCopyinClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -359,11 +572,11 @@ std::string OpenACCCopyinClause::toString() {
     break;
   default:;
   };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+  parameter_string += this->varsToString();
+  if (!parameter_string.empty()) {
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 1);
+    result += " ";
   }
 
   return result;
@@ -372,7 +585,7 @@ std::string OpenACCCopyinClause::toString() {
 std::string OpenACCCopyoutClause::toString() {
 
   std::string keyword = original_keyword.empty() ? "copyout" : original_keyword;
-  std::string result = keyword + "(";
+  std::string result = keyword;
   std::string parameter_string = "";
   OpenACCCopyoutClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -381,11 +594,11 @@ std::string OpenACCCopyoutClause::toString() {
     break;
   default:;
   };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+  parameter_string += this->varsToString();
+  if (!parameter_string.empty()) {
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 1);
+    result += " ";
   }
 
   return result;
@@ -394,7 +607,7 @@ std::string OpenACCCopyoutClause::toString() {
 std::string OpenACCCreateClause::toString() {
 
   std::string keyword = original_keyword.empty() ? "create" : original_keyword;
-  std::string result = keyword + "(";
+  std::string result = keyword;
   std::string parameter_string = "";
   OpenACCCreateClauseModifier modifier = this->getModifier();
   switch (modifier) {
@@ -403,15 +616,146 @@ std::string OpenACCCreateClause::toString() {
     break;
   default:;
   };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
+  parameter_string += this->varsToString();
+  if (!parameter_string.empty()) {
+    result += "(" + parameter_string + ") ";
   } else {
-    result = result.substr(0, result.size() - 1);
+    result += " ";
   }
 
   return result;
 };
+
+static std::string
+varClauseToString(const std::string &keyword,
+                  const std::vector<std::string> &vars) {
+  std::string result = keyword;
+  if (!vars.empty()) {
+    result += "(";
+    for (auto it = vars.begin(); it != vars.end(); ++it) {
+      result += *it;
+      if (it + 1 != vars.end()) {
+        result += ", ";
+      }
+    }
+    result += ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCCopyClause::toString() {
+  std::string keyword = original_keyword.empty() ? "copy" : original_keyword;
+  std::string result = keyword;
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCNoCreateClause::toString() {
+  std::string result = "no_create";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCPresentClause::toString() {
+  std::string result = "present";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCLinkClause::toString() {
+  std::string result = "link";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCDeviceResidentClause::toString() {
+  std::string result = "device_resident";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCDeviceptrClause::toString() {
+  std::string result = "deviceptr";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCUseDeviceClause::toString() {
+  std::string result = "use_device";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCAttachClause::toString() {
+  std::string result = "attach";
+  if (!getVars().empty()) {
+    result += "(" + varsToString() + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
+std::string OpenACCDeleteClause::toString() {
+  return varClauseToString("delete", getVars());
+}
+
+std::string OpenACCDetachClause::toString() {
+  return varClauseToString("detach", getVars());
+}
+
+std::string OpenACCSelfClause::toString() {
+  std::string result = "self";
+  if (!getCondition().empty()) {
+    result += "(" + getCondition() + ")";
+  } else if (!getVars().empty()) {
+    result += "(" + varsToString() + ")";
+  }
+  result += " ";
+  return result;
+}
+
+std::string OpenACCFirstprivateClause::toString() {
+  return varClauseToString("firstprivate", getVars());
+}
+
+std::string OpenACCHostClause::toString() {
+  return varClauseToString("host", getVars());
+}
+
+std::string OpenACCPrivateClause::toString() {
+  return varClauseToString("private", getVars());
+}
 
 std::string OpenACCDefaultClause::toString() {
 
@@ -441,68 +785,68 @@ std::string OpenACCDefaultClause::toString() {
 std::string OpenACCReductionClause::toString() {
 
   std::string result = "reduction(";
-  std::string parameter_string = "";
+  std::string op;
   OpenACCReductionClauseOperator reduction_operator = this->getOperator();
   switch (reduction_operator) {
   case ACCC_REDUCTION_add:
-    parameter_string = "+ : ";
+    op = "+";
     break;
   case ACCC_REDUCTION_sub:
-    parameter_string = "- : ";
+    op = "-";
     break;
   case ACCC_REDUCTION_mul:
-    parameter_string = "* : ";
+    op = "*";
     break;
   case ACCC_REDUCTION_max:
-    parameter_string = "max : ";
+    op = "max";
     break;
   case ACCC_REDUCTION_min:
-    parameter_string = "min : ";
+    op = "min";
     break;
   case ACCC_REDUCTION_bitand:
-    parameter_string = "& : ";
+    op = "&";
     break;
   case ACCC_REDUCTION_bitor:
-    parameter_string = "| : ";
+    op = "|";
     break;
   case ACCC_REDUCTION_bitxor:
-    parameter_string = "^ : ";
+    op = "^";
     break;
   case ACCC_REDUCTION_logand:
-    parameter_string = "&& : ";
+    op = "&&";
     break;
   case ACCC_REDUCTION_logor:
-    parameter_string = "|| : ";
+    op = "||";
     break;
   case ACCC_REDUCTION_fort_and:
-    parameter_string = ".and. : ";
+    op = ".and.";
     break;
   case ACCC_REDUCTION_fort_or:
-    parameter_string = ".or. : ";
+    op = ".or.";
     break;
   case ACCC_REDUCTION_fort_eqv:
-    parameter_string = ".eqv. : ";
+    op = ".eqv.";
     break;
   case ACCC_REDUCTION_fort_neqv:
-    parameter_string = ".neqv. : ";
+    op = ".neqv.";
     break;
   case ACCC_REDUCTION_fort_iand:
-    parameter_string = "iand : ";
+    op = ".iand.";
     break;
   case ACCC_REDUCTION_fort_ior:
-    parameter_string = "ior : ";
+    op = ".ior.";
     break;
   case ACCC_REDUCTION_fort_ieor:
-    parameter_string = "ieor : ";
+    op = ".ieor.";
     break;
-  default:;
+  default:
+    op = "";
   };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
-    result += parameter_string + ") ";
-  } else {
-    result = result.substr(0, result.size() - 1);
-  }
+
+  result += op;
+  result += " : ";
+  result += this->varsToString();
+  result += ") ";
 
   return result;
 };
@@ -510,29 +854,42 @@ std::string OpenACCReductionClause::toString() {
 std::string OpenACCVectorClause::toString() {
 
   std::string result = "vector";
-  std::string parameter_string = "";
-  OpenACCVectorClauseModifier modifier = this->getModifier();
-  switch (modifier) {
+  const std::string &length = this->getLengthExpr();
+  switch (this->getModifier()) {
   case ACCC_VECTOR_length:
-    parameter_string = "length: ";
+    result += "(length: " + length + ") ";
     break;
-  default:;
-  };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
+  case ACCC_VECTOR_expr_only:
+    result += "(" + length + ") ";
+    break;
+  default:
+    if (!length.empty()) {
+      result += "(" + length + ") ";
+    } else {
+      result += " ";
+    }
   }
 
   return result;
 };
 
+std::string OpenACCVectorLengthClause::toString() {
+
+  std::string result = "vector_length";
+  const std::string &length = this->getLengthExpr();
+  if (!length.empty()) {
+    result += "(" + length + ") ";
+  } else {
+    result += " ";
+  }
+  return result;
+}
+
 std::string OpenACCWaitClause::toString() {
 
   std::string result = "wait";
   std::string parameter_string = "";
-  if (this->getExpressions()->size() != 0) {
+  if (!this->getAsyncIds().empty()) {
     result += "(";
     std::string devnum = this->getDevnum();
     if (devnum != "") {
@@ -542,7 +899,13 @@ std::string OpenACCWaitClause::toString() {
       parameter_string += "queues: ";
     };
 
-    parameter_string += this->expressionToString();
+    const auto &ids = this->getAsyncIds();
+    for (auto it = ids.begin(); it != ids.end(); ++it) {
+      parameter_string += *it;
+      if (it + 1 != ids.end()) {
+        parameter_string += ", ";
+      }
+    }
     result += parameter_string + ") ";
   } else {
     result += " ";
@@ -554,19 +917,20 @@ std::string OpenACCWaitClause::toString() {
 std::string OpenACCWorkerClause::toString() {
 
   std::string result = "worker";
-  std::string parameter_string = "";
-  OpenACCWorkerClauseModifier modifier = this->getModifier();
-  switch (modifier) {
+  const std::string &num = this->getNumExpr();
+  switch (this->getModifier()) {
   case ACCC_WORKER_num:
-    parameter_string = "num: ";
+    result += "(num: " + num + ") ";
     break;
-  default:;
-  };
-  parameter_string += this->expressionToString();
-  if (parameter_string.size() > 0) {
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
+  case ACCC_WORKER_expr_only:
+    result += "(" + num + ") ";
+    break;
+  default:
+    if (!num.empty()) {
+      result += "(" + num + ") ";
+    } else {
+      result += " ";
+    }
   }
 
   return result;

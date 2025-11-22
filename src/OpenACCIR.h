@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <fstream>
@@ -81,6 +82,35 @@ public:
   virtual std::string toString();
   virtual ~OpenACCClause() = default;
   std::string expressionToString();
+};
+
+// Common base for clauses that carry a variable list.
+class OpenACCVarListClause : public OpenACCClause {
+protected:
+  std::vector<std::string> vars;
+
+public:
+  OpenACCVarListClause(OpenACCClauseKind k, int _line = 0, int _col = 0)
+      : OpenACCClause(k, _line, _col) {}
+
+  void addVar(const std::string &expr) {
+    if (std::find(vars.begin(), vars.end(), expr) == vars.end()) {
+      vars.push_back(expr);
+    }
+  }
+
+  const std::vector<std::string> &getVars() const { return vars; }
+
+  std::string varsToString() const {
+    std::string out;
+    for (auto it = vars.begin(); it != vars.end(); ++it) {
+      out += *it;
+      if (it + 1 != vars.end()) {
+        out += ", ";
+      }
+    }
+    return out;
+  }
 };
 
 /**
@@ -207,7 +237,7 @@ public:
 class OpenACCCacheDirective : public OpenACCDirective {
 protected:
   OpenACCCacheDirectiveModifier modifier = ACCC_CACHE_unspecified;
-  std::vector<std::string> expressions;
+  std::vector<std::string> vars;
 
 public:
   OpenACCCacheDirective() : OpenACCDirective(ACCD_cache){};
@@ -215,10 +245,23 @@ public:
   void setModifier(OpenACCCacheDirectiveModifier _modifier) {
     modifier = _modifier;
   };
-  std::vector<std::string> *getExpressions() { return &expressions; };
-  void addVar(std::string _string) { expressions.push_back(_string); };
+  const std::vector<std::string> &getVars() const { return vars; }
+  void addVar(const std::string &_string) {
+    if (std::find(vars.begin(), vars.end(), _string) == vars.end()) {
+      vars.push_back(_string);
+    }
+  };
+  std::string varsToString() const {
+    std::string out;
+    for (auto it = vars.begin(); it != vars.end(); ++it) {
+      out += *it;
+      if (it + 1 != vars.end()) {
+        out += ", ";
+      }
+    }
+    return out;
+  }
   std::string toString();
-  std::string expressionToString();
 };
 
 // End directive
@@ -238,17 +281,22 @@ public:
 class OpenACCRoutineDirective : public OpenACCDirective {
 protected:
   std::string name = "";
+  bool name_is_string_literal = false;
 
 public:
   OpenACCRoutineDirective() : OpenACCDirective(ACCD_routine){};
-  void setName(std::string _name) { name = _name; };
+  void setName(std::string _name, bool is_string_literal = false) {
+    name = _name;
+    name_is_string_literal = is_string_literal;
+  };
   std::string getName() { return name; };
+  bool isNameStringLiteral() const { return name_is_string_literal; };
 };
 
 // Wait directive
 class OpenACCWaitDirective : public OpenACCDirective {
 protected:
-  std::vector<std::string> expressions;
+  std::vector<std::string> async_ids;
   std::string devnum = "";
   bool queues = false;
 
@@ -258,8 +306,8 @@ public:
   std::string getDevnum() { return devnum; };
   void setQueues(bool _queues) { queues = _queues; };
   bool getQueues() { return queues; };
-  std::vector<std::string> *getExpressions() { return &expressions; };
-  void addVar(std::string _string) { expressions.push_back(_string); };
+  std::vector<std::string> *getAsyncIds() { return &async_ids; };
+  void addAsyncId(std::string _string) { async_ids.push_back(_string); };
   std::string toString();
   std::string expressionToString();
 };
@@ -267,8 +315,17 @@ public:
 // Async Clause
 class OpenACCAsyncClause : public OpenACCClause {
 
+protected:
+  OpenACCAsyncModifier modifier = ACCC_ASYNC_unspecified;
+  std::string async_expr;
+
 public:
   OpenACCAsyncClause() : OpenACCClause(ACCC_async){};
+
+  void setModifier(OpenACCAsyncModifier m) { modifier = m; }
+  OpenACCAsyncModifier getModifier() const { return modifier; }
+  void setAsyncExpr(const std::string &expr) { async_expr = expr; }
+  const std::string &getAsyncExpr() const { return async_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -278,8 +335,19 @@ public:
 // Bind Clause
 class OpenACCBindClause : public OpenACCClause {
 
+protected:
+  std::string binding = "";
+  bool is_string_literal = false;
+
 public:
   OpenACCBindClause() : OpenACCClause(ACCC_bind){};
+
+  void setBinding(const std::string &_binding, bool _is_string_literal) {
+    binding = _binding;
+    is_string_literal = _is_string_literal;
+  }
+  const std::string &getBinding() const { return binding; }
+  bool isStringLiteral() const { return is_string_literal; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -289,8 +357,25 @@ public:
 // Collapse Clause
 class OpenACCCollapseClause : public OpenACCClause {
 
+protected:
+  std::vector<std::string> counts;
+
 public:
   OpenACCCollapseClause() : OpenACCClause(ACCC_collapse){};
+
+  void addCountExpr(const std::string &expr) { counts.push_back(expr); }
+  const std::vector<std::string> &getCounts() const { return counts; }
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Copy Clause
+class OpenACCCopyClause : public OpenACCVarListClause {
+
+public:
+  OpenACCCopyClause() : OpenACCVarListClause(ACCC_copy) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -298,13 +383,13 @@ public:
 };
 
 // Copyin Clause
-class OpenACCCopyinClause : public OpenACCClause {
+class OpenACCCopyinClause : public OpenACCVarListClause {
 
 protected:
   OpenACCCopyinClauseModifier modifier = ACCC_COPYIN_unspecified;
 
 public:
-  OpenACCCopyinClause() : OpenACCClause(ACCC_copyin){};
+  OpenACCCopyinClause() : OpenACCVarListClause(ACCC_copyin){};
 
   OpenACCCopyinClauseModifier getModifier() { return modifier; };
 
@@ -318,13 +403,13 @@ public:
 };
 
 // Copyout Clause
-class OpenACCCopyoutClause : public OpenACCClause {
+class OpenACCCopyoutClause : public OpenACCVarListClause {
 
 protected:
   OpenACCCopyoutClauseModifier modifier = ACCC_COPYOUT_unspecified;
 
 public:
-  OpenACCCopyoutClause() : OpenACCClause(ACCC_copyout){};
+  OpenACCCopyoutClause() : OpenACCVarListClause(ACCC_copyout){};
 
   OpenACCCopyoutClauseModifier getModifier() { return modifier; };
 
@@ -338,19 +423,80 @@ public:
 };
 
 // Create Clause
-class OpenACCCreateClause : public OpenACCClause {
+class OpenACCCreateClause : public OpenACCVarListClause {
 
 protected:
   OpenACCCreateClauseModifier modifier = ACCC_CREATE_unspecified;
 
 public:
-  OpenACCCreateClause() : OpenACCClause(ACCC_create){};
+  OpenACCCreateClause() : OpenACCVarListClause(ACCC_create){};
 
   OpenACCCreateClauseModifier getModifier() { return modifier; };
 
   void setModifier(OpenACCCreateClauseModifier _modifier) {
     modifier = _modifier;
   };
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// No_create Clause
+class OpenACCNoCreateClause : public OpenACCVarListClause {
+public:
+  OpenACCNoCreateClause() : OpenACCVarListClause(ACCC_no_create) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Present Clause
+class OpenACCPresentClause : public OpenACCVarListClause {
+public:
+  OpenACCPresentClause() : OpenACCVarListClause(ACCC_present) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Link Clause
+class OpenACCLinkClause : public OpenACCVarListClause {
+public:
+  OpenACCLinkClause() : OpenACCVarListClause(ACCC_link) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Device Resident Clause
+class OpenACCDeviceResidentClause : public OpenACCVarListClause {
+public:
+  OpenACCDeviceResidentClause()
+      : OpenACCVarListClause(ACCC_device_resident) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Deviceptr Clause
+class OpenACCDeviceptrClause : public OpenACCVarListClause {
+public:
+  OpenACCDeviceptrClause() : OpenACCVarListClause(ACCC_deviceptr) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Use_device Clause
+class OpenACCUseDeviceClause : public OpenACCVarListClause {
+public:
+  OpenACCUseDeviceClause() : OpenACCVarListClause(ACCC_use_device) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -379,19 +525,112 @@ public:
 // Default_async Clause
 class OpenACCDefaultAsyncClause : public OpenACCClause {
 
+protected:
+  std::string async_expr;
+
 public:
   OpenACCDefaultAsyncClause() : OpenACCClause(ACCC_default_async){};
+
+  void setAsyncExpr(const std::string &expr) { async_expr = expr; }
+  const std::string &getAsyncExpr() const { return async_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
   void mergeClause(OpenACCDirective *, OpenACCClause *);
 };
 
-// Device_num Clause
-class OpenACCDeviceNumClause : public OpenACCClause {
+// Attach Clause
+class OpenACCAttachClause : public OpenACCVarListClause {
+public:
+  OpenACCAttachClause() : OpenACCVarListClause(ACCC_attach) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Delete Clause
+class OpenACCDeleteClause : public OpenACCVarListClause {
+public:
+  OpenACCDeleteClause() : OpenACCVarListClause(ACCC_delete) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Detach Clause
+class OpenACCDetachClause : public OpenACCVarListClause {
+public:
+  OpenACCDetachClause() : OpenACCVarListClause(ACCC_detach) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Device Clause
+class OpenACCDeviceClause : public OpenACCClause {
+
+protected:
+  std::vector<std::string> devices;
 
 public:
-  OpenACCDeviceNumClause() : OpenACCClause(ACCC_device_num){};
+  OpenACCDeviceClause() : OpenACCClause(ACCC_device) {}
+
+  void addDevice(const std::string &expr) {
+    if (std::find(devices.begin(), devices.end(), expr) == devices.end()) {
+      devices.push_back(expr);
+    }
+  }
+  const std::vector<std::string> &getDevices() const { return devices; }
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Firstprivate Clause
+class OpenACCFirstprivateClause : public OpenACCVarListClause {
+public:
+  OpenACCFirstprivateClause() : OpenACCVarListClause(ACCC_firstprivate) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Host Clause
+class OpenACCHostClause : public OpenACCVarListClause {
+public:
+  OpenACCHostClause() : OpenACCVarListClause(ACCC_host) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Private Clause
+class OpenACCPrivateClause : public OpenACCVarListClause {
+public:
+  OpenACCPrivateClause() : OpenACCVarListClause(ACCC_private) {}
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// If Clause
+class OpenACCIfClause : public OpenACCClause {
+
+protected:
+  std::string condition;
+
+public:
+  OpenACCIfClause() : OpenACCClause(ACCC_if) {}
+
+  void setCondition(const std::string &expr) { condition = expr; }
+  const std::string &getCondition() const { return condition; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -402,7 +641,21 @@ public:
 class OpenACCGangClause : public OpenACCClause {
 
 public:
+  struct GangArg {
+    OpenACCGangArgKind kind;
+    std::string value;
+  };
+
+protected:
+  std::vector<GangArg> args;
+
+public:
   OpenACCGangClause() : OpenACCClause(ACCC_gang){};
+
+  void addArg(OpenACCGangArgKind kind, const std::string &value) {
+    args.push_back({kind, value});
+  }
+  const std::vector<GangArg> &getArgs() const { return args; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -411,9 +664,14 @@ public:
 
 // Num_gangs Clause
 class OpenACCNumGangsClause : public OpenACCClause {
+protected:
+  std::vector<std::string> nums;
 
 public:
   OpenACCNumGangsClause() : OpenACCClause(ACCC_num_gangs){};
+
+  void addNum(const std::string &expr) { nums.push_back(expr); }
+  const std::vector<std::string> &getNums() const { return nums; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -423,8 +681,46 @@ public:
 // Num_workers Clause
 class OpenACCNumWorkersClause : public OpenACCClause {
 
+protected:
+  std::string num_expr;
+
 public:
   OpenACCNumWorkersClause() : OpenACCClause(ACCC_num_workers){};
+
+  void setNumExpr(const std::string &expr) { num_expr = expr; }
+  const std::string &getNumExpr() const { return num_expr; }
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Device_num Clause
+class OpenACCDeviceNumClause : public OpenACCClause {
+protected:
+  std::string device_expr;
+
+public:
+  OpenACCDeviceNumClause() : OpenACCClause(ACCC_device_num) {}
+
+  void setDeviceExpr(const std::string &expr) { device_expr = expr; }
+  const std::string &getDeviceExpr() const { return device_expr; }
+
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Tile Clause
+class OpenACCTileClause : public OpenACCClause {
+protected:
+  std::vector<std::string> tile_sizes;
+
+public:
+  OpenACCTileClause() : OpenACCClause(ACCC_tile) {}
+
+  void addTileSize(const std::string &expr) { tile_sizes.push_back(expr); }
+  const std::vector<std::string> &getTileSizes() const { return tile_sizes; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -432,14 +728,14 @@ public:
 };
 
 // Reduction Clause
-class OpenACCReductionClause : public OpenACCClause {
+class OpenACCReductionClause : public OpenACCVarListClause {
 
 protected:
   OpenACCReductionClauseOperator reduction_operator =
       ACCC_REDUCTION_unspecified;
 
 public:
-  OpenACCReductionClause() : OpenACCClause(ACCC_reduction){};
+  OpenACCReductionClause() : OpenACCVarListClause(ACCC_reduction){};
 
   OpenACCReductionClauseOperator getOperator() { return reduction_operator; };
 
@@ -452,11 +748,17 @@ public:
   void mergeClause(OpenACCDirective *, OpenACCClause *);
 };
 
-// Self Clause
-class OpenACCSelfClause : public OpenACCClause {
+// Self Clause: supports either a condition or a variable list.
+class OpenACCSelfClause : public OpenACCVarListClause {
+
+protected:
+  std::string condition;
 
 public:
-  OpenACCSelfClause() : OpenACCClause(ACCC_self){};
+  OpenACCSelfClause() : OpenACCVarListClause(ACCC_self) {}
+
+  void setCondition(const std::string &expr) { condition = expr; }
+  const std::string &getCondition() const { return condition; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -465,18 +767,20 @@ public:
 
 // Vector Clause
 class OpenACCVectorClause : public OpenACCClause {
-
 protected:
   OpenACCVectorClauseModifier modifier = ACCC_VECTOR_unspecified;
+  std::string length_expr;
 
 public:
   OpenACCVectorClause() : OpenACCClause(ACCC_vector){};
 
-  OpenACCVectorClauseModifier getModifier() { return modifier; };
+  OpenACCVectorClauseModifier getModifier() const { return modifier; };
 
   void setModifier(OpenACCVectorClauseModifier _modifier) {
     modifier = _modifier;
   };
+  void setLengthExpr(const std::string &expr) { length_expr = expr; }
+  const std::string &getLengthExpr() const { return length_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -486,8 +790,14 @@ public:
 // Vector_length Clause
 class OpenACCVectorLengthClause : public OpenACCClause {
 
+protected:
+  std::string length_expr;
+
 public:
   OpenACCVectorLengthClause() : OpenACCClause(ACCC_vector_length){};
+
+  void setLengthExpr(const std::string &expr) { length_expr = expr; }
+  const std::string &getLengthExpr() const { return length_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -500,6 +810,7 @@ class OpenACCWaitClause : public OpenACCClause {
 protected:
   std::string devnum = "";
   bool queues = false;
+  std::vector<std::string> async_ids;
 
 public:
   OpenACCWaitClause() : OpenACCClause(ACCC_wait){};
@@ -508,7 +819,31 @@ public:
   std::string getDevnum() { return devnum; };
   void setQueues(bool _queues) { queues = _queues; };
   bool getQueues() { return queues; };
+  void addAsyncId(const std::string &expr) { async_ids.push_back(expr); }
+  const std::vector<std::string> &getAsyncIds() const { return async_ids; }
 
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+
+// Device_type Clause
+class OpenACCDeviceTypeClause : public OpenACCClause {
+protected:
+  std::vector<OpenACCDeviceTypeKind> device_types;
+  std::vector<std::string> unknown_types;
+
+public:
+  OpenACCDeviceTypeClause() : OpenACCClause(ACCC_device_type) {}
+
+  void addDeviceType(OpenACCDeviceTypeKind kind);
+  void addDeviceTypeString(const std::string &value);
+  const std::vector<OpenACCDeviceTypeKind> &getDeviceTypes() const {
+    return device_types;
+  }
+  const std::vector<std::string> &getUnknownDeviceTypes() const {
+    return unknown_types;
+  }
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
   void mergeClause(OpenACCDirective *, OpenACCClause *);
@@ -519,15 +854,18 @@ class OpenACCWorkerClause : public OpenACCClause {
 
 protected:
   OpenACCWorkerClauseModifier modifier = ACCC_WORKER_unspecified;
+  std::string num_expr;
 
 public:
   OpenACCWorkerClause() : OpenACCClause(ACCC_worker){};
 
-  OpenACCWorkerClauseModifier getModifier() { return modifier; };
+  OpenACCWorkerClauseModifier getModifier() const { return modifier; };
 
   void setModifier(OpenACCWorkerClauseModifier _modifier) {
     modifier = _modifier;
   };
+  void setNumExpr(const std::string &expr) { num_expr = expr; }
+  const std::string &getNumExpr() const { return num_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
