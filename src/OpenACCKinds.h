@@ -89,6 +89,14 @@ enum OpenACCClauseKind {
 #undef OPENACC_CLAUSE
 };
 
+enum OpenACCDeviceTypeKind {
+    ACCC_DEVICE_TYPE_unknown,
+    ACCC_DEVICE_TYPE_host,
+    ACCC_DEVICE_TYPE_any,
+    ACCC_DEVICE_TYPE_multicore,
+    ACCC_DEVICE_TYPE_default
+};
+
 // OpenACC attributes for 'cache' directive.
 enum OpenACCCacheDirectiveModifier {
 #define OPENACC_CACHE_MODIFIER(Name) ACCC_CACHE_##Name,
@@ -166,6 +174,7 @@ enum OpenACCVectorClauseModifier {
 #define OPENACC_VECTOR_MODIFIER(Name) ACCC_VECTOR_##Name,
     OPENACC_VECTOR_MODIFIER(unspecified)
     OPENACC_VECTOR_MODIFIER(length)
+    OPENACC_VECTOR_MODIFIER(expr_only)
     OPENACC_VECTOR_MODIFIER(unknown)
 #undef OPENACC_VECTOR_MODIFIER
 };
@@ -175,9 +184,22 @@ enum OpenACCWorkerClauseModifier {
 #define OPENACC_WORKER_MODIFIER(Name) ACCC_WORKER_##Name,
     OPENACC_WORKER_MODIFIER(unspecified)
     OPENACC_WORKER_MODIFIER(num)
+    OPENACC_WORKER_MODIFIER(expr_only)
     OPENACC_WORKER_MODIFIER(unknown)
 #undef OPENACC_WORKER_MODIFIER
 };
 
-#endif
+enum OpenACCAsyncModifier {
+  ACCC_ASYNC_unspecified,
+  ACCC_ASYNC_expr
+};
 
+enum OpenACCGangArgKind {
+  ACCC_GANG_ARG_unknown,
+  ACCC_GANG_ARG_num,
+  ACCC_GANG_ARG_dim,
+  ACCC_GANG_ARG_static,
+  ACCC_GANG_ARG_other
+};
+
+#endif

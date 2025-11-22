@@ -132,6 +132,8 @@ public:
   enterDetach_clause(accparser::Detach_clauseContext * /*ctx*/) override;
   virtual void
   enterDevice_clause(accparser::Device_clauseContext * /*ctx*/) override;
+  virtual void
+  exitDevice_clause(accparser::Device_clauseContext * /*ctx*/) override;
   virtual void enterDevice_num_clause(
       accparser::Device_num_clauseContext * /*ctx*/) override;
   virtual void
@@ -157,6 +159,7 @@ public:
   virtual void
   enterHost_clause(accparser::Host_clauseContext * /*ctx*/) override;
   virtual void enterIf_clause(accparser::If_clauseContext * /*ctx*/) override;
+  virtual void exitIf_clause(accparser::If_clauseContext * /*ctx*/) override;
   virtual void enterIf_present_clause(
       accparser::If_present_clauseContext * /*ctx*/) override;
   virtual void enterIndependent_clause(
@@ -191,9 +194,13 @@ public:
   exitSelf_clause(accparser::Self_clauseContext * /*ctx*/) override;
   virtual void
   enterSelf_list_clause(accparser::Self_list_clauseContext * /*ctx*/) override;
+  virtual void exitSelf_list_clause(
+      accparser::Self_list_clauseContext * /*ctx*/) override;
   virtual void enterSeq_clause(accparser::Seq_clauseContext * /*ctx*/) override;
   virtual void
   enterTile_clause(accparser::Tile_clauseContext * /*ctx*/) override;
+  virtual void
+  exitTile_clause(accparser::Tile_clauseContext * /*ctx*/) override;
   virtual void
   enterUpdate_clause(accparser::Update_clauseContext * /*ctx*/) override;
   virtual void enterUse_device_clause(

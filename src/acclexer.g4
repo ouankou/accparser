@@ -159,6 +159,11 @@ LINE_END
    : [\n\r] -> skip
    ;
 
+CLAUSE_COMMA
+   : ',' [\p{White_Space}]*
+   -> skip
+   ;
+
 ASYNC
    : 'async' [\p{White_Space}]*
    {
@@ -1299,4 +1304,3 @@ EXPRESSION_CHAR
   }
 }
    ;
-
