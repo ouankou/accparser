@@ -117,7 +117,7 @@ public:
 
   void addVar(const std::string &expr,
               OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
-    vars.push_back(OpenACCExpressionItem{expr, sep});
+    addVar(OpenACCExpressionItem{expr, sep});
   }
   void addVar(const OpenACCExpressionItem &item) {
     if (isClauseMergingEnabled()) {
