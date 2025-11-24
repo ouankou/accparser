@@ -43,8 +43,10 @@ lexer grammar acclexer;
 
 @ lexer :: declarations
 { /* private lexer declarations/members section */
-  int parenthesis_local_count, parenthesis_global_count, bracket_count;
-  int colon_count;
+  int parenthesis_local_count = 0;
+  int parenthesis_global_count = 0;
+  int bracket_count = 0;
+  int colon_count = 0;
   bool paren_processed = false;
 }
 // Appears in line with the other class member definitions in the cpp file.
@@ -195,7 +197,12 @@ CAPTURE
    ;
 
 COLLAPSE
-   : 'collapse' -> pushMode (expr_clause)
+   : 'collapse'
+   {
+  // Allow colon-delimited modifiers like collapse(force:2) to stay inside the expression.
+  colon_count = 1;
+}
+     -> pushMode (expr_clause)
    ;
 
 PCOPY
