@@ -8,7 +8,7 @@
 !$acc enter data create(zero: zero::12, 23, 34)
 !$acc enter data if(5)
 !$acc enter data if(x==3)
-!$acc enter data create(zero: x, y, z, x, y, a, a, b, c)
+!$acc enter data create(zero: x, y, z, a, b, c)
 !$acc enter data create(zero: x, y, z, a, b, c, 1, 2, 3)
 !$acc enter data create(x, y, z) create(zero: a, b, c)
 !$acc enter data create(zero: x, y, z) create(a, b, c)

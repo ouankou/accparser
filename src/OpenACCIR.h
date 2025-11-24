@@ -18,6 +18,9 @@ struct OpenACCIdentifier {
   bool is_string_literal = false;
 };
 
+class OpenACCDirective;
+bool isClauseMergingEnabled();
+
 enum OpenACCBaseLang {
   ACC_Lang_C,
   ACC_Lang_Cplusplus,
@@ -116,7 +119,16 @@ public:
               OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
     vars.push_back(OpenACCExpressionItem{expr, sep});
   }
-  void addVar(const OpenACCExpressionItem &item) { vars.push_back(item); }
+  void addVar(const OpenACCExpressionItem &item) {
+    if (isClauseMergingEnabled()) {
+      for (const auto &prev : vars) {
+        if (prev.text == item.text) {
+          return;
+        }
+      }
+    }
+    vars.push_back(item);
+  }
 
   const std::vector<OpenACCExpressionItem> &getVars() const { return vars; }
 
@@ -251,6 +263,10 @@ public:
   void setBaseLang(OpenACCBaseLang _lang) { lang = _lang; };
   OpenACCBaseLang getBaseLang() { return lang; };
 };
+
+inline bool isClauseMergingEnabled() {
+  return OpenACCDirective::getClauseMerging();
+}
 
 // Cache directive
 class OpenACCCacheDirective : public OpenACCDirective {
@@ -627,7 +643,17 @@ protected:
 public:
   OpenACCDeviceClause() : OpenACCClause(ACCC_device) {}
 
-  void addDevice(const OpenACCExpressionItem &expr) { devices.push_back(expr); }
+  void addDevice(const OpenACCExpressionItem &expr,
+                 bool dedup_if_merging = true) {
+    if (dedup_if_merging && isClauseMergingEnabled()) {
+      for (const auto &prev : devices) {
+        if (prev.text == expr.text) {
+          return;
+        }
+      }
+    }
+    devices.push_back(expr);
+  }
   void addDevice(const std::string &expr,
                  OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
     addDevice(OpenACCExpressionItem{expr, sep});
