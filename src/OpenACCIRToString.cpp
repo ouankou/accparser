@@ -128,11 +128,14 @@ std::string OpenACCClause::expressionToString() {
   std::string result;
   std::vector<std::string> *expr = this->getExpressions();
   if (expr != NULL && !expr->empty()) {
-    for (auto it = expr->begin(); it != expr->end(); ++it) {
-      if (it != expr->begin()) {
-        result += ", ";
+    const auto &seps = this->getExpressionSeparators();
+    for (size_t idx = 0; idx < expr->size(); ++idx) {
+      if (idx > 0) {
+        OpenACCClauseSeparator sep =
+            (idx < seps.size()) ? seps[idx] : ACCC_CLAUSE_SEP_comma;
+        result += (sep == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
-      result += *it;
+      result += (*expr)[idx];
     }
   }
 
@@ -628,15 +631,15 @@ std::string OpenACCCreateClause::toString() {
 
 static std::string
 varClauseToString(const std::string &keyword,
-                  const std::vector<std::string> &vars) {
+                  const std::vector<OpenACCExpressionItem> &vars) {
   std::string result = keyword;
   if (!vars.empty()) {
     result += "(";
-    for (auto it = vars.begin(); it != vars.end(); ++it) {
-      result += *it;
-      if (it + 1 != vars.end()) {
-        result += ", ";
+    for (size_t idx = 0; idx < vars.size(); ++idx) {
+      if (idx > 0) {
+        result += (vars[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
+      result += vars[idx].text;
     }
     result += ") ";
   } else {

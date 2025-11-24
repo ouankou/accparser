@@ -11,4 +11,4 @@
 !$acc routine nohost
 !$acc routine bind(expression1)
 !$acc routine bind(expression1) bind(expression2)
-!$acc routine bind(expression1)
+!$acc routine bind(expression1) bind(expression1)

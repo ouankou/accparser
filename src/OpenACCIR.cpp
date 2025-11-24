@@ -2,22 +2,15 @@
 #include <algorithm>
 #include <cstdarg>
 
-// Initialize static flag - default to true for backward compatibility
-bool OpenACCDirective::enable_clause_merging = true;
+// Initialize static flag - disable merging by default to preserve clause
+// occurrences and ordering.
+bool OpenACCDirective::enable_clause_merging = false;
 
-void OpenACCClause::addLangExpr(std::string expression, int line, int col) {
-  //  Since the size of expression vector is supposed to be small, brute force
-  //  is used here.
-  //  NOTE: Deduplication disabled for tile, num_gangs, gang where position matters
-  bool allow_duplicates = (kind == ACCC_tile || kind == ACCC_num_gangs || kind == ACCC_gang);
-  if (!allow_duplicates) {
-    for (unsigned int i = 0; i < this->expressions.size(); i++) {
-      if (expressions.at(i) == expression) {
-        return;
-      };
-    };
-  }
+void OpenACCClause::addLangExpr(std::string expression,
+                                OpenACCClauseSeparator sep, int line,
+                                int col) {
   expressions.push_back(expression);
+  expression_separators.push_back(sep);
 
   locations.push_back(ACC_SourceLocation(line, col));
 };

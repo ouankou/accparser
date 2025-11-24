@@ -89,6 +89,12 @@ enum OpenACCClauseKind {
 #undef OPENACC_CLAUSE
 };
 
+// Separator used between clause arguments when unparsing.
+enum OpenACCClauseSeparator {
+  ACCC_CLAUSE_SEP_space,
+  ACCC_CLAUSE_SEP_comma
+};
+
 enum OpenACCDeviceTypeKind {
     ACCC_DEVICE_TYPE_unknown,
     ACCC_DEVICE_TYPE_host,

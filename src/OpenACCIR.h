@@ -8,6 +8,11 @@
 
 #include "OpenACCKinds.h"
 
+struct OpenACCExpressionItem {
+  std::string text;
+  OpenACCClauseSeparator separator = ACCC_CLAUSE_SEP_comma;
+};
+
 enum OpenACCBaseLang {
   ACC_Lang_C,
   ACC_Lang_Cplusplus,
@@ -56,6 +61,7 @@ protected:
    * record for an expression and its location
    */
   std::vector<std::string> expressions;
+  std::vector<OpenACCClauseSeparator> expression_separators;
 
   std::vector<ACC_SourceLocation> locations;
 
@@ -75,9 +81,14 @@ public:
   // a list of expressions or variables that are language-specific for the
   // clause, accparser does not parse them, instead, it only stores them as
   // strings
-  void addLangExpr(std::string expression_string, int line = 0, int col = 0);
+  void addLangExpr(std::string expression_string,
+                   OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma,
+                   int line = 0, int col = 0);
 
   std::vector<std::string> *getExpressions() { return &expressions; };
+  const std::vector<OpenACCClauseSeparator> &getExpressionSeparators() const {
+    return expression_separators;
+  }
 
   virtual std::string toString();
   virtual ~OpenACCClause() = default;
@@ -87,27 +98,27 @@ public:
 // Common base for clauses that carry a variable list.
 class OpenACCVarListClause : public OpenACCClause {
 protected:
-  std::vector<std::string> vars;
+  std::vector<OpenACCExpressionItem> vars;
 
 public:
   OpenACCVarListClause(OpenACCClauseKind k, int _line = 0, int _col = 0)
       : OpenACCClause(k, _line, _col) {}
 
-  void addVar(const std::string &expr) {
-    if (std::find(vars.begin(), vars.end(), expr) == vars.end()) {
-      vars.push_back(expr);
-    }
+  void addVar(const std::string &expr,
+              OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    vars.push_back(OpenACCExpressionItem{expr, sep});
   }
+  void addVar(const OpenACCExpressionItem &item) { vars.push_back(item); }
 
-  const std::vector<std::string> &getVars() const { return vars; }
+  const std::vector<OpenACCExpressionItem> &getVars() const { return vars; }
 
   std::string varsToString() const {
     std::string out;
-    for (auto it = vars.begin(); it != vars.end(); ++it) {
-      out += *it;
-      if (it + 1 != vars.end()) {
-        out += ", ";
+    for (size_t idx = 0; idx < vars.size(); ++idx) {
+      if (idx > 0) {
+        out += (vars[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
+      out += vars[idx].text;
     }
     return out;
   }
