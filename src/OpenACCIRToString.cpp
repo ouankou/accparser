@@ -96,8 +96,9 @@ std::string OpenACCDirective::toString() {
     break;
   case ACCD_routine:
     result += "routine ";
-    if (!((OpenACCRoutineDirective *)this)->getName().empty()) {
-      result += "(" + ((OpenACCRoutineDirective *)this)->getName() + ") ";
+    if (!((OpenACCRoutineDirective *)this)->getName().text.empty()) {
+      result +=
+          "(" + ((OpenACCRoutineDirective *)this)->getName().text + ") ";
     }
     break;
   case ACCD_serial:
@@ -123,19 +124,17 @@ std::string OpenACCDirective::toString() {
   return result;
 };
 
-std::string OpenACCClause::expressionToString() {
+std::string OpenACCClause::expressionToString() const {
 
   std::string result;
-  std::vector<std::string> *expr = this->getExpressions();
+  const auto *expr = this->getExpressions();
   if (expr != NULL && !expr->empty()) {
-    const auto &seps = this->getExpressionSeparators();
     for (size_t idx = 0; idx < expr->size(); ++idx) {
       if (idx > 0) {
-        OpenACCClauseSeparator sep =
-            (idx < seps.size()) ? seps[idx] : ACCC_CLAUSE_SEP_comma;
-        result += (sep == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
+        result += ((*expr)[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", "
+                                                                    : " ";
       }
-      result += (*expr)[idx];
+      result += (*expr)[idx].text;
     }
   }
 
@@ -365,7 +364,7 @@ std::string OpenACCCollapseClause::toString() {
 
   for (const auto &val : vals) {
     result += "collapse";
-    result += "(" + val + ") ";
+    result += "(" + val.text + ") ";
   }
   return result;
 }
@@ -373,8 +372,8 @@ std::string OpenACCCollapseClause::toString() {
 std::string OpenACCAsyncClause::toString() {
 
   std::string result = "async";
-  if (getModifier() == ACCC_ASYNC_expr && !getAsyncExpr().empty()) {
-    result += "(" + getAsyncExpr() + ") ";
+  if (getModifier() == ACCC_ASYNC_expr && !getAsyncExpr().text.empty()) {
+    result += "(" + getAsyncExpr().text + ") ";
   } else {
     result += " ";
   }
@@ -384,13 +383,13 @@ std::string OpenACCAsyncClause::toString() {
 std::string OpenACCWaitDirective::expressionToString() {
 
   std::string result;
-  std::vector<std::string> *expr = this->getAsyncIds();
-  if (expr != NULL && !expr->empty()) {
-    for (auto it = expr->begin(); it != expr->end(); ++it) {
-      if (it != expr->begin()) {
-        result += ", ";
+  const auto &expr = this->getAsyncIds();
+  if (!expr.empty()) {
+    for (auto it = expr.begin(); it != expr.end(); ++it) {
+      if (it != expr.begin()) {
+        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
-      result += *it;
+      result += it->text;
     }
   }
 
@@ -401,11 +400,11 @@ std::string OpenACCWaitDirective::toString() {
 
   std::string result = "wait";
   std::string parameter_string = "";
-  if (!this->getAsyncIds()->empty()) {
+  if (!this->getAsyncIds().empty()) {
     result += "(";
-    std::string devnum = this->getDevnum();
-    if (devnum != "") {
-      parameter_string += "devnum: " + devnum + ": ";
+    const auto &devnum = this->getDevnum();
+    if (!devnum.text.empty()) {
+      parameter_string += "devnum: " + devnum.text + ": ";
     };
     if (this->getQueues() == true) {
       parameter_string += "queues: ";
@@ -422,8 +421,8 @@ std::string OpenACCWaitDirective::toString() {
 std::string OpenACCDefaultAsyncClause::toString() {
 
   std::string result = "default_async";
-  if (!getAsyncExpr().empty()) {
-    result += "(" + getAsyncExpr() + ") ";
+  if (!getAsyncExpr().text.empty()) {
+    result += "(" + getAsyncExpr().text + ") ";
   } else {
     result += " ";
   }
@@ -437,9 +436,9 @@ std::string OpenACCDeviceClause::toString() {
   if (!devs.empty()) {
     result += "(";
     for (auto it = devs.begin(); it != devs.end(); ++it) {
-      result += *it;
+      result += it->text;
       if (it + 1 != devs.end()) {
-        result += ", ";
+        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
     }
     result += ") ";
@@ -452,8 +451,8 @@ std::string OpenACCDeviceClause::toString() {
 std::string OpenACCIfClause::toString() {
 
   std::string result = "if";
-  if (!getCondition().empty()) {
-    result += "(" + getCondition() + ") ";
+  if (!getCondition().text.empty()) {
+    result += "(" + getCondition().text + ") ";
   } else {
     result += " ";
   }
@@ -463,8 +462,8 @@ std::string OpenACCIfClause::toString() {
 std::string OpenACCDeviceNumClause::toString() {
 
   std::string result = "device_num";
-  if (!getDeviceExpr().empty()) {
-    result += "(" + getDeviceExpr() + ") ";
+  if (!getDeviceExpr().text.empty()) {
+    result += "(" + getDeviceExpr().text + ") ";
   } else {
     result += " ";
   }
@@ -483,20 +482,21 @@ std::string OpenACCGangClause::toString() {
   const auto &arg_list = getArgs();
   for (auto it = arg_list.begin(); it != arg_list.end(); ++it) {
     if (it != arg_list.begin()) {
-      parameter_string += ", ";
+      parameter_string +=
+          (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
     }
     switch (it->kind) {
     case ACCC_GANG_ARG_num:
-      parameter_string += "num:" + it->value;
+      parameter_string += "num:" + it->value.text;
       break;
     case ACCC_GANG_ARG_dim:
-      parameter_string += "dim:" + it->value;
+      parameter_string += "dim:" + it->value.text;
       break;
     case ACCC_GANG_ARG_static:
-      parameter_string += "static:" + it->value;
+      parameter_string += "static:" + it->value.text;
       break;
     default:
-      parameter_string += it->value;
+      parameter_string += it->value.text;
       break;
     }
   }
@@ -511,9 +511,9 @@ std::string OpenACCNumGangsClause::toString() {
   if (!vals.empty()) {
     result += "(";
     for (auto it = vals.begin(); it != vals.end(); ++it) {
-      result += *it;
+      result += it->text;
       if (it + 1 != vals.end())
-        result += ", ";
+        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
     }
     result += ") ";
   } else {
@@ -525,8 +525,8 @@ std::string OpenACCNumGangsClause::toString() {
 std::string OpenACCNumWorkersClause::toString() {
 
   std::string result = "num_workers";
-  if (!getNumExpr().empty()) {
-    result += "(" + getNumExpr() + ") ";
+  if (!getNumExpr().text.empty()) {
+    result += "(" + getNumExpr().text + ") ";
   } else {
     result += " ";
   }
@@ -540,9 +540,9 @@ std::string OpenACCTileClause::toString() {
   if (!sizes.empty()) {
     result += "(";
     for (auto it = sizes.begin(); it != sizes.end(); ++it) {
-      result += *it;
+      result += it->text;
       if (it + 1 != sizes.end()) {
-        result += ", ";
+        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
     }
     result += ") ";
@@ -555,8 +555,8 @@ std::string OpenACCTileClause::toString() {
 std::string OpenACCBindClause::toString() {
 
   std::string result = "bind";
-  if (!getBinding().empty()) {
-    result += "(" + getBinding() + ") ";
+  if (!getBinding().text.empty()) {
+    result += "(" + getBinding().text + ") ";
   } else {
     result += " ";
   }
@@ -739,8 +739,8 @@ std::string OpenACCDetachClause::toString() {
 
 std::string OpenACCSelfClause::toString() {
   std::string result = "self";
-  if (!getCondition().empty()) {
-    result += "(" + getCondition() + ")";
+  if (!getCondition().text.empty()) {
+    result += "(" + getCondition().text + ")";
   } else if (!getVars().empty()) {
     result += "(" + varsToString() + ")";
   }
@@ -857,17 +857,17 @@ std::string OpenACCReductionClause::toString() {
 std::string OpenACCVectorClause::toString() {
 
   std::string result = "vector";
-  const std::string &length = this->getLengthExpr();
+  const auto &length = this->getLengthExpr();
   switch (this->getModifier()) {
   case ACCC_VECTOR_length:
-    result += "(length: " + length + ") ";
+    result += "(length: " + length.text + ") ";
     break;
   case ACCC_VECTOR_expr_only:
-    result += "(" + length + ") ";
+    result += "(" + length.text + ") ";
     break;
   default:
-    if (!length.empty()) {
-      result += "(" + length + ") ";
+    if (!length.text.empty()) {
+      result += "(" + length.text + ") ";
     } else {
       result += " ";
     }
@@ -879,9 +879,9 @@ std::string OpenACCVectorClause::toString() {
 std::string OpenACCVectorLengthClause::toString() {
 
   std::string result = "vector_length";
-  const std::string &length = this->getLengthExpr();
-  if (!length.empty()) {
-    result += "(" + length + ") ";
+  const auto &length = this->getLengthExpr();
+  if (!length.text.empty()) {
+    result += "(" + length.text + ") ";
   } else {
     result += " ";
   }
@@ -894,9 +894,9 @@ std::string OpenACCWaitClause::toString() {
   std::string parameter_string = "";
   if (!this->getAsyncIds().empty()) {
     result += "(";
-    std::string devnum = this->getDevnum();
-    if (devnum != "") {
-      parameter_string += "devnum: " + devnum + ": ";
+    const auto &devnum = this->getDevnum();
+    if (!devnum.text.empty()) {
+      parameter_string += "devnum: " + devnum.text + ": ";
     };
     if (this->getQueues() == true) {
       parameter_string += "queues: ";
@@ -904,9 +904,10 @@ std::string OpenACCWaitClause::toString() {
 
     const auto &ids = this->getAsyncIds();
     for (auto it = ids.begin(); it != ids.end(); ++it) {
-      parameter_string += *it;
+      parameter_string += it->text;
       if (it + 1 != ids.end()) {
-        parameter_string += ", ";
+        parameter_string +=
+            (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
     }
     result += parameter_string + ") ";
@@ -920,17 +921,17 @@ std::string OpenACCWaitClause::toString() {
 std::string OpenACCWorkerClause::toString() {
 
   std::string result = "worker";
-  const std::string &num = this->getNumExpr();
+  const auto &num = this->getNumExpr();
   switch (this->getModifier()) {
   case ACCC_WORKER_num:
-    result += "(num: " + num + ") ";
+    result += "(num: " + num.text + ") ";
     break;
   case ACCC_WORKER_expr_only:
-    result += "(" + num + ") ";
+    result += "(" + num.text + ") ";
     break;
   default:
-    if (!num.empty()) {
-      result += "(" + num + ") ";
+    if (!num.text.empty()) {
+      result += "(" + num.text + ") ";
     } else {
       result += " ";
     }

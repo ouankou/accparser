@@ -6,12 +6,9 @@
 // occurrences and ordering.
 bool OpenACCDirective::enable_clause_merging = false;
 
-void OpenACCClause::addLangExpr(std::string expression,
-                                OpenACCClauseSeparator sep, int line,
-                                int col) {
+void OpenACCClause::addLangExpr(const OpenACCExpressionItem &expression,
+                                int line, int col) {
   expressions.push_back(expression);
-  expression_separators.push_back(sep);
-
   locations.push_back(ACC_SourceLocation(line, col));
 };
 
@@ -274,7 +271,7 @@ void OpenACCAsyncClause::mergeClause(OpenACCDirective *directive,
        ++it) {
     auto *existing = static_cast<OpenACCAsyncClause *>(*it);
     if (incoming->getModifier() == existing->getModifier() &&
-        incoming->getAsyncExpr() == existing->getAsyncExpr()) {
+        incoming->getAsyncExpr().text == existing->getAsyncExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -320,7 +317,7 @@ void OpenACCBindClause::mergeClause(OpenACCDirective *directive,
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCBindClause *>(*it);
-    if (existing->getBinding() == incoming->getBinding() &&
+    if (existing->getBinding().text == incoming->getBinding().text &&
         existing->isStringLiteral() == incoming->isStringLiteral()) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
@@ -374,7 +371,7 @@ void OpenACCCollapseClause::mergeClause(OpenACCDirective *directive,
       for (const auto &count : incoming->getCounts()) {
         bool found = false;
         for (const auto &prev : existing->getCounts()) {
-          if (prev == count) {
+          if (prev.text == count.text) {
             found = true;
             break;
           }
@@ -1055,7 +1052,7 @@ void OpenACCDefaultAsyncClause::mergeClause(OpenACCDirective *directive,
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCDefaultAsyncClause *>(*it);
-    if (incoming->getAsyncExpr() == existing->getAsyncExpr()) {
+    if (incoming->getAsyncExpr().text == existing->getAsyncExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -1100,9 +1097,14 @@ void OpenACCDeviceClause::mergeClause(OpenACCDirective *directive,
   auto *existing = static_cast<OpenACCDeviceClause *>(current_clauses->front());
 
   for (const auto &dev : incoming->getDevices()) {
-    if (std::find(existing->getDevices().begin(),
-                  existing->getDevices().end(),
-                  dev) == existing->getDevices().end()) {
+    bool found = false;
+    for (const auto &prev : existing->getDevices()) {
+      if (prev.text == dev.text) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
       existing->addDevice(dev);
     }
   }
@@ -1148,7 +1150,8 @@ void OpenACCIfClause::mergeClause(OpenACCDirective *directive,
   auto *incoming = static_cast<OpenACCIfClause *>(current_clause);
   auto *existing = static_cast<OpenACCIfClause *>(current_clauses->front());
 
-  if (!incoming->getCondition().empty() && existing->getCondition().empty()) {
+  if (!incoming->getCondition().text.empty() &&
+      existing->getCondition().text.empty()) {
     existing->setCondition(incoming->getCondition());
   }
 
@@ -1192,7 +1195,7 @@ void OpenACCDeviceNumClause::mergeClause(OpenACCDirective *directive,
        it != current_clauses->end() - 1; it++) {
     auto *existing = static_cast<OpenACCDeviceNumClause *>(*it);
     auto *incoming = static_cast<OpenACCDeviceNumClause *>(current_clause);
-    if (existing->getDeviceExpr() == incoming->getDeviceExpr()) {
+    if (existing->getDeviceExpr().text == incoming->getDeviceExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -1338,7 +1341,7 @@ void OpenACCGangClause::mergeClause(OpenACCDirective *directive,
       for (const auto &arg : incoming->getArgs()) {
         bool found = false;
         for (const auto &prev : existing->getArgs()) {
-          if (prev.kind == arg.kind && prev.value == arg.value) {
+          if (prev.kind == arg.kind && prev.value.text == arg.value.text) {
             found = true;
             break;
           }
@@ -1373,7 +1376,18 @@ void OpenACCNumGangsClause::mergeClause(OpenACCDirective *directive,
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCNumGangsClause *>(*it);
-    if (existing->getNums() == incoming->getNums()) {
+    const auto &existing_nums = existing->getNums();
+    const auto &incoming_nums = incoming->getNums();
+    bool same = existing_nums.size() == incoming_nums.size();
+    if (same) {
+      for (size_t idx = 0; idx < existing_nums.size(); ++idx) {
+        if (existing_nums[idx].text != incoming_nums[idx].text) {
+          same = false;
+          break;
+        }
+      }
+    }
+    if (same) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -1420,7 +1434,7 @@ void OpenACCNumWorkersClause::mergeClause(OpenACCDirective *directive,
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCNumWorkersClause *>(*it);
-    if (existing->getNumExpr() == incoming->getNumExpr()) {
+    if (existing->getNumExpr().text == incoming->getNumExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -1506,15 +1520,15 @@ void OpenACCSelfClause::mergeClause(OpenACCDirective *directive,
   }
 
   auto *incoming = static_cast<OpenACCSelfClause *>(current_clause);
-  const bool incoming_has_condition = !incoming->getCondition().empty();
+  const bool incoming_has_condition = !incoming->getCondition().text.empty();
 
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCSelfClause *>(*it);
-    const bool existing_has_condition = !existing->getCondition().empty();
+    const bool existing_has_condition = !existing->getCondition().text.empty();
 
     if (incoming_has_condition && existing_has_condition) {
-      if (incoming->getCondition() == existing->getCondition()) {
+      if (incoming->getCondition().text == existing->getCondition().text) {
         current_clauses->pop_back();
         directive->getClausesInOriginalOrder()->pop_back();
         delete incoming;
@@ -1594,7 +1608,7 @@ void OpenACCVectorClause::mergeClause(OpenACCDirective *directive,
        ++it) {
     auto *existing = static_cast<OpenACCVectorClause *>(*it);
     if (existing->getModifier() == incoming->getModifier() &&
-        existing->getLengthExpr() == incoming->getLengthExpr()) {
+        existing->getLengthExpr().text == incoming->getLengthExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -1653,7 +1667,7 @@ void OpenACCVectorLengthClause::mergeClause(OpenACCDirective *directive,
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCVectorLengthClause *>(*it);
-    if (existing->getLengthExpr() == incoming->getLengthExpr()) {
+    if (existing->getLengthExpr().text == incoming->getLengthExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
@@ -1694,40 +1708,41 @@ void OpenACCWaitClause::mergeClause(OpenACCDirective *directive,
     return;
   }
 
-    auto *incoming = static_cast<OpenACCWaitClause *>(current_clause);
-    for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-         ++it) {
-      auto *existing = static_cast<OpenACCWaitClause *>(*it);
-      if (incoming->getDevnum() == existing->getDevnum() &&
-          incoming->getQueues() == existing->getQueues()) {
-        if (incoming->getAsyncIds().empty() && existing->getAsyncIds().empty()) {
-          current_clauses->pop_back();
-          directive->getClausesInOriginalOrder()->pop_back();
-          delete incoming;
-          break;
-        }
-        if (!incoming->getAsyncIds().empty() &&
-            !existing->getAsyncIds().empty()) {
-          for (const auto &id : incoming->getAsyncIds()) {
-            bool found = false;
-            for (const auto &prev : existing->getAsyncIds()) {
-              if (prev == id) {
-                found = true;
-                break;
-              }
-            }
-            if (!found) {
-              existing->addAsyncId(id);
+  auto *incoming = static_cast<OpenACCWaitClause *>(current_clause);
+  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
+       ++it) {
+    auto *existing = static_cast<OpenACCWaitClause *>(*it);
+    if (incoming->getDevnum().text == existing->getDevnum().text &&
+        incoming->getQueues() == existing->getQueues()) {
+      const auto &incoming_ids = incoming->getAsyncIds();
+      const auto &existing_ids = existing->getAsyncIds();
+      if (incoming_ids.empty() && existing_ids.empty()) {
+        current_clauses->pop_back();
+        directive->getClausesInOriginalOrder()->pop_back();
+        delete incoming;
+        break;
+      }
+      if (!incoming_ids.empty() && !existing_ids.empty()) {
+        for (const auto &id : incoming_ids) {
+          bool found = false;
+          for (const auto &prev : existing_ids) {
+            if (prev.text == id.text) {
+              found = true;
+              break;
             }
           }
-          current_clauses->pop_back();
-          directive->getClausesInOriginalOrder()->pop_back();
-          delete incoming;
-          break;
+          if (!found) {
+            existing->addAsyncId(id);
+          }
         }
+        current_clauses->pop_back();
+        directive->getClausesInOriginalOrder()->pop_back();
+        delete incoming;
+        break;
       }
     }
-  };
+  }
+};
 
 OpenACCClause *OpenACCWorkerClause::addClause(OpenACCDirective *directive) {
 
@@ -1778,7 +1793,7 @@ void OpenACCWorkerClause::mergeClause(OpenACCDirective *directive,
        ++it) {
     auto *existing = static_cast<OpenACCWorkerClause *>(*it);
     if (existing->getModifier() == incoming->getModifier() &&
-        existing->getNumExpr() == incoming->getNumExpr()) {
+        existing->getNumExpr().text == incoming->getNumExpr().text) {
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       delete incoming;
