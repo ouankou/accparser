@@ -40,6 +40,11 @@ int main(int argc, char **argv) {
 
   const char *filename = NULL;
   int result = 0;
+
+  // Built-in tests expect normalized/merged clause output; enable merging here
+  // while keeping the round-trip tool (acc_roundtrip) in non-merging mode.
+  OpenACCDirective::setClauseMerging(true);
+
   if (argc > 1) {
     filename = argv[1];
   };
