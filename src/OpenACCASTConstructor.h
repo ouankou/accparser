@@ -205,6 +205,8 @@ public:
   enterUpdate_clause(accparser::Update_clauseContext * /*ctx*/) override;
   virtual void enterUse_device_clause(
       accparser::Use_device_clauseContext * /*ctx*/) override;
+  virtual void exitUse_device_clause(
+      accparser::Use_device_clauseContext * /*ctx*/) override;
   virtual void
   enterVector_clause(accparser::Vector_clauseContext * /*ctx*/) override;
   virtual void exitVector_clause_modifier(

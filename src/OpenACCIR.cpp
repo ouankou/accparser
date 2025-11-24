@@ -8,6 +8,13 @@ bool OpenACCDirective::enable_clause_merging = false;
 
 void OpenACCClause::addLangExpr(const OpenACCExpressionItem &expression,
                                 int line, int col) {
+  if (isClauseMergingEnabled()) {
+    for (const auto &prev : expressions) {
+      if (prev.text == expression.text) {
+        return;
+      }
+    }
+  }
   expressions.push_back(expression);
   locations.push_back(ACC_SourceLocation(line, col));
 };
@@ -394,7 +401,16 @@ void OpenACCCollapseClause::mergeClause(OpenACCDirective *directive,
 static void mergeVarList(OpenACCVarListClause *existing,
                          OpenACCVarListClause *incoming) {
   for (const auto &var : incoming->getVars()) {
-    existing->addVar(var);
+    bool seen = false;
+    for (const auto &prev : existing->getVars()) {
+      if (prev.text == var.text) {
+        seen = true;
+        break;
+      }
+    }
+    if (!seen) {
+      existing->addVar(var);
+    }
   }
 }
 
@@ -568,9 +584,7 @@ void OpenACCCopyinClause::mergeClause(OpenACCDirective *directive,
             ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
       auto *existing = static_cast<OpenACCCopyinClause *>(*it);
       auto *incoming = static_cast<OpenACCCopyinClause *>(current_clause);
-      for (const auto &var : incoming->getVars()) {
-        existing->addVar(var);
-      }
+      mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       break;
@@ -616,9 +630,7 @@ void OpenACCCopyoutClause::mergeClause(OpenACCDirective *directive,
             ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
       auto *existing = static_cast<OpenACCCopyoutClause *>(*it);
       auto *incoming = static_cast<OpenACCCopyoutClause *>(current_clause);
-      for (const auto &var : incoming->getVars()) {
-        existing->addVar(var);
-      }
+      mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       break;
@@ -664,9 +676,7 @@ void OpenACCCreateClause::mergeClause(OpenACCDirective *directive,
             ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
       auto *existing = static_cast<OpenACCCreateClause *>(*it);
       auto *incoming = static_cast<OpenACCCreateClause *>(current_clause);
-      for (const auto &var : incoming->getVars()) {
-        existing->addVar(var);
-      }
+      mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
       break;
@@ -896,8 +906,6 @@ OpenACCClause *OpenACCUseDeviceClause::addClause(OpenACCDirective *directive) {
     current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
     (*all_clauses)[ACCC_use_device] = current_clauses;
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
   } else {
     new_clause = new OpenACCUseDeviceClause();
     current_clauses->push_back(new_clause);

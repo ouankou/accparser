@@ -663,6 +663,12 @@ void OpenACCIRConstructor::enterUse_device_clause(
   current_clause = current_directive->addOpenACCClause(ACCC_use_device);
 }
 
+void OpenACCIRConstructor::exitUse_device_clause(
+    accparser::Use_device_clauseContext *ctx) {
+  static_cast<OpenACCUseDeviceClause *>(current_clause)
+      ->mergeClause(current_directive, current_clause);
+}
+
 void OpenACCIRConstructor::enterVector_clause(
     accparser::Vector_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_vector);
