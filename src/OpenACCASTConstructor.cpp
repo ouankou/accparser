@@ -192,7 +192,7 @@ void OpenACCIRConstructor::enterAsync_clause(
   if (ctx->int_expr()) {
     std::string expr = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
     static_cast<OpenACCAsyncClause *>(current_clause)
-        ->setAsyncExpr(expr);
+        ->setAsyncExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
     static_cast<OpenACCAsyncClause *>(current_clause)
         ->setModifier(ACCC_ASYNC_expr);
   } else {
@@ -383,7 +383,7 @@ void OpenACCIRConstructor::exitDefault_async_clause(
   if (ctx->int_expr()) {
     std::string expr = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
     static_cast<OpenACCDefaultAsyncClause *>(current_clause)
-        ->setAsyncExpr(expr);
+        ->setAsyncExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
   }
   ((OpenACCDefaultAsyncClause *)current_clause)
       ->mergeClause(current_directive, current_clause);
@@ -680,7 +680,8 @@ void OpenACCIRConstructor::exitVector_clause(
   if (ctx->vector_clause_args() && ctx->vector_clause_args()->int_expr()) {
     std::string expr =
         trimEnclosingWhiteSpace(ctx->vector_clause_args()->int_expr()->getText());
-    ((OpenACCVectorClause *)current_clause)->setLengthExpr(expr);
+    ((OpenACCVectorClause *)current_clause)
+        ->setLengthExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
     if (((OpenACCVectorClause *)current_clause)->getModifier() ==
         ACCC_VECTOR_unspecified) {
       ((OpenACCVectorClause *)current_clause)->setModifier(ACCC_VECTOR_expr_only);
@@ -700,7 +701,8 @@ void OpenACCIRConstructor::exitVector_length_clause(
   if (ctx->int_expr()) {
     std::string expr =
         trimEnclosingWhiteSpace(ctx->int_expr()->getText());
-    ((OpenACCVectorLengthClause *)current_clause)->setLengthExpr(expr);
+    ((OpenACCVectorLengthClause *)current_clause)
+        ->setLengthExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
   }
   ((OpenACCVectorLengthClause *)current_clause)
       ->mergeClause(current_directive, current_clause);
@@ -739,9 +741,11 @@ void OpenACCIRConstructor::exitWait_argument_int_expr(
     accparser::Wait_argument_int_exprContext *ctx) {
   std::string expression = trimEnclosingWhiteSpace(ctx->getText());
   if (current_directive->getKind() == ACCD_wait) {
-    ((OpenACCWaitDirective *)current_directive)->setDevnum(expression);
+    ((OpenACCWaitDirective *)current_directive)
+        ->setDevnum(OpenACCExpressionItem{expression, ACCC_CLAUSE_SEP_comma});
   } else {
-    ((OpenACCWaitClause *)current_clause)->setDevnum(expression);
+    ((OpenACCWaitClause *)current_clause)
+        ->setDevnum(OpenACCExpressionItem{expression, ACCC_CLAUSE_SEP_comma});
   }
 };
 
@@ -749,9 +753,11 @@ void OpenACCIRConstructor::exitWait_int_expr(
     accparser::Wait_int_exprContext *ctx) {
   std::string expression = trimEnclosingWhiteSpace(ctx->getText());
   if (current_directive->getKind() == ACCD_wait) {
-    ((OpenACCWaitDirective *)current_directive)->addAsyncId(expression);
+    ((OpenACCWaitDirective *)current_directive)
+        ->addAsyncId(OpenACCExpressionItem{expression, ACCC_CLAUSE_SEP_comma});
   } else {
-    static_cast<OpenACCWaitClause *>(current_clause)->addAsyncId(expression);
+    static_cast<OpenACCWaitClause *>(current_clause)
+        ->addAsyncId(OpenACCExpressionItem{expression, ACCC_CLAUSE_SEP_comma});
   }
 };
 
@@ -777,7 +783,8 @@ void OpenACCIRConstructor::exitWorker_clause(
   if (ctx->worker_clause_args() && ctx->worker_clause_args()->int_expr()) {
     std::string expr =
         trimEnclosingWhiteSpace(ctx->worker_clause_args()->int_expr()->getText());
-    ((OpenACCWorkerClause *)current_clause)->setNumExpr(expr);
+    ((OpenACCWorkerClause *)current_clause)
+        ->setNumExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
     if (((OpenACCWorkerClause *)current_clause)->getModifier() ==
         ACCC_WORKER_unspecified) {
       ((OpenACCWorkerClause *)current_clause)->setModifier(ACCC_WORKER_expr_only);
@@ -817,34 +824,40 @@ void OpenACCIRConstructor::exitInt_expr(accparser::Int_exprContext *ctx) {
     }
     if (kind == ACCC_wait) {
       static_cast<OpenACCWaitClause *>(current_clause)
-          ->addAsyncId(trimEnclosingWhiteSpace(ctx->getText()));
+          ->addAsyncId(OpenACCExpressionItem{
+              trimEnclosingWhiteSpace(ctx->getText()), ACCC_CLAUSE_SEP_comma});
       return;
     }
     if (kind == ACCC_async) {
       static_cast<OpenACCAsyncClause *>(current_clause)
-          ->setAsyncExpr(trimEnclosingWhiteSpace(ctx->getText()));
+          ->setAsyncExpr(OpenACCExpressionItem{
+              trimEnclosingWhiteSpace(ctx->getText()), ACCC_CLAUSE_SEP_comma});
       static_cast<OpenACCAsyncClause *>(current_clause)
           ->setModifier(ACCC_ASYNC_expr);
       return;
     }
     if (kind == ACCC_default_async) {
       static_cast<OpenACCDefaultAsyncClause *>(current_clause)
-          ->setAsyncExpr(trimEnclosingWhiteSpace(ctx->getText()));
+          ->setAsyncExpr(OpenACCExpressionItem{
+              trimEnclosingWhiteSpace(ctx->getText()), ACCC_CLAUSE_SEP_comma});
       return;
     }
     if (kind == ACCC_device_num) {
       static_cast<OpenACCDeviceNumClause *>(current_clause)
-          ->setDeviceExpr(trimEnclosingWhiteSpace(ctx->getText()));
+          ->setDeviceExpr(OpenACCExpressionItem{
+              trimEnclosingWhiteSpace(ctx->getText()), ACCC_CLAUSE_SEP_comma});
       return;
     }
     if (kind == ACCC_num_workers) {
       static_cast<OpenACCNumWorkersClause *>(current_clause)
-          ->setNumExpr(trimEnclosingWhiteSpace(ctx->getText()));
+          ->setNumExpr(OpenACCExpressionItem{
+              trimEnclosingWhiteSpace(ctx->getText()), ACCC_CLAUSE_SEP_comma});
       return;
     }
     if (kind == ACCC_num_gangs) {
       static_cast<OpenACCNumGangsClause *>(current_clause)
-          ->addNum(trimEnclosingWhiteSpace(ctx->getText()));
+          ->addNum(OpenACCExpressionItem{
+              trimEnclosingWhiteSpace(ctx->getText()), ACCC_CLAUSE_SEP_comma});
       return;
     }
     if (kind == ACCC_collapse) {
@@ -895,11 +908,11 @@ void OpenACCIRConstructor::exitVar(accparser::VarContext *ctx) {
       if (current_clause->getKind() == ACCC_gang) {
         auto *gang = static_cast<OpenACCGangClause *>(current_clause);
         OpenACCGangArgKind kind = ACCC_GANG_ARG_other;
-        std::string value = expression;
+        OpenACCExpressionItem value{expression, ACCC_CLAUSE_SEP_comma};
         size_t colon = expression.find(':');
         if (colon != std::string::npos) {
           std::string key = trimEnclosingWhiteSpace(expression.substr(0, colon));
-          value = trimEnclosingWhiteSpace(expression.substr(colon + 1));
+          value.text = trimEnclosingWhiteSpace(expression.substr(colon + 1));
           std::transform(key.begin(), key.end(), key.begin(), ::tolower);
           if (key == "num") {
             kind = ACCC_GANG_ARG_num;
@@ -909,7 +922,7 @@ void OpenACCIRConstructor::exitVar(accparser::VarContext *ctx) {
             kind = ACCC_GANG_ARG_static;
           } else {
             kind = ACCC_GANG_ARG_other;
-            value = expression;
+            value.text = expression;
           }
         }
         gang->addArg(kind, value);
