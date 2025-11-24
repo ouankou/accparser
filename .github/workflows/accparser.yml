@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-llvm:
     strategy:
@@ -103,4 +107,3 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/build
         ctest -R "^openacc_vv_" --output-on-failure
-

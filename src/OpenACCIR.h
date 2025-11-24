@@ -13,6 +13,11 @@ struct OpenACCExpressionItem {
   OpenACCClauseSeparator separator = ACCC_CLAUSE_SEP_comma;
 };
 
+struct OpenACCIdentifier {
+  std::string text;
+  bool is_string_literal = false;
+};
+
 enum OpenACCBaseLang {
   ACC_Lang_C,
   ACC_Lang_Cplusplus,
@@ -60,8 +65,7 @@ protected:
    * the expression/localtionLine/locationColumn are the same index are one
    * record for an expression and its location
    */
-  std::vector<std::string> expressions;
-  std::vector<OpenACCClauseSeparator> expression_separators;
+  std::vector<OpenACCExpressionItem> expressions;
 
   std::vector<ACC_SourceLocation> locations;
 
@@ -81,18 +85,22 @@ public:
   // a list of expressions or variables that are language-specific for the
   // clause, accparser does not parse them, instead, it only stores them as
   // strings
-  void addLangExpr(std::string expression_string,
+  void addLangExpr(const OpenACCExpressionItem &expression, int line = 0,
+                   int col = 0);
+  void addLangExpr(const std::string &expression_string,
                    OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma,
-                   int line = 0, int col = 0);
-
-  std::vector<std::string> *getExpressions() { return &expressions; };
-  const std::vector<OpenACCClauseSeparator> &getExpressionSeparators() const {
-    return expression_separators;
+                   int line = 0, int col = 0) {
+    addLangExpr(OpenACCExpressionItem{expression_string, sep}, line, col);
   }
+
+  std::vector<OpenACCExpressionItem> *getExpressions() { return &expressions; };
+  const std::vector<OpenACCExpressionItem> *getExpressions() const {
+    return &expressions;
+  };
 
   virtual std::string toString();
   virtual ~OpenACCClause() = default;
-  std::string expressionToString();
+  std::string expressionToString() const;
 };
 
 // Common base for clauses that carry a variable list.
@@ -248,7 +256,7 @@ public:
 class OpenACCCacheDirective : public OpenACCDirective {
 protected:
   OpenACCCacheDirectiveModifier modifier = ACCC_CACHE_unspecified;
-  std::vector<std::string> vars;
+  std::vector<OpenACCExpressionItem> vars;
 
 public:
   OpenACCCacheDirective() : OpenACCDirective(ACCD_cache){};
@@ -256,19 +264,26 @@ public:
   void setModifier(OpenACCCacheDirectiveModifier _modifier) {
     modifier = _modifier;
   };
-  const std::vector<std::string> &getVars() const { return vars; }
-  void addVar(const std::string &_string) {
-    if (std::find(vars.begin(), vars.end(), _string) == vars.end()) {
-      vars.push_back(_string);
+  const std::vector<OpenACCExpressionItem> &getVars() const { return vars; }
+  void addVar(const std::string &_string,
+              OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    addVar(OpenACCExpressionItem{_string, sep});
+  }
+  void addVar(const OpenACCExpressionItem &item) {
+    if (std::find_if(vars.begin(), vars.end(),
+                     [&](const OpenACCExpressionItem &existing) {
+                       return existing.text == item.text;
+                     }) == vars.end()) {
+      vars.push_back(item);
     }
   };
   std::string varsToString() const {
     std::string out;
-    for (auto it = vars.begin(); it != vars.end(); ++it) {
-      out += *it;
-      if (it + 1 != vars.end()) {
-        out += ", ";
+    for (size_t idx = 0; idx < vars.size(); ++idx) {
+      if (idx > 0) {
+        out += (vars[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
+      out += vars[idx].text;
     }
     return out;
   }
@@ -291,34 +306,44 @@ public:
 // Routine directive
 class OpenACCRoutineDirective : public OpenACCDirective {
 protected:
-  std::string name = "";
-  bool name_is_string_literal = false;
+  OpenACCIdentifier name;
 
 public:
   OpenACCRoutineDirective() : OpenACCDirective(ACCD_routine){};
   void setName(std::string _name, bool is_string_literal = false) {
-    name = _name;
-    name_is_string_literal = is_string_literal;
+    name = {_name, is_string_literal};
   };
-  std::string getName() { return name; };
-  bool isNameStringLiteral() const { return name_is_string_literal; };
+  void setName(const OpenACCIdentifier &_name) { name = _name; };
+  const OpenACCIdentifier &getName() const { return name; };
 };
 
 // Wait directive
 class OpenACCWaitDirective : public OpenACCDirective {
 protected:
-  std::vector<std::string> async_ids;
-  std::string devnum = "";
+  std::vector<OpenACCExpressionItem> async_ids;
+  OpenACCExpressionItem devnum;
   bool queues = false;
 
 public:
   OpenACCWaitDirective() : OpenACCDirective(ACCD_wait){};
-  void setDevnum(std::string _devnum) { devnum = _devnum; };
-  std::string getDevnum() { return devnum; };
+  void setDevnum(const OpenACCExpressionItem &_devnum) { devnum = _devnum; };
+  void setDevnum(const std::string &_devnum,
+                 OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    devnum = {_devnum, sep};
+  };
+  const OpenACCExpressionItem &getDevnum() const { return devnum; };
   void setQueues(bool _queues) { queues = _queues; };
   bool getQueues() { return queues; };
-  std::vector<std::string> *getAsyncIds() { return &async_ids; };
-  void addAsyncId(std::string _string) { async_ids.push_back(_string); };
+  const std::vector<OpenACCExpressionItem> &getAsyncIds() const {
+    return async_ids;
+  };
+  void addAsyncId(const OpenACCExpressionItem &_string) {
+    async_ids.push_back(_string);
+  };
+  void addAsyncId(const std::string &_string,
+                  OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    async_ids.push_back({_string, sep});
+  };
   std::string toString();
   std::string expressionToString();
 };
@@ -328,15 +353,19 @@ class OpenACCAsyncClause : public OpenACCClause {
 
 protected:
   OpenACCAsyncModifier modifier = ACCC_ASYNC_unspecified;
-  std::string async_expr;
+  OpenACCExpressionItem async_expr;
 
 public:
   OpenACCAsyncClause() : OpenACCClause(ACCC_async){};
 
   void setModifier(OpenACCAsyncModifier m) { modifier = m; }
   OpenACCAsyncModifier getModifier() const { return modifier; }
-  void setAsyncExpr(const std::string &expr) { async_expr = expr; }
-  const std::string &getAsyncExpr() const { return async_expr; }
+  void setAsyncExpr(const OpenACCExpressionItem &expr) { async_expr = expr; }
+  void setAsyncExpr(const std::string &expr,
+                    OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    async_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getAsyncExpr() const { return async_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -347,18 +376,17 @@ public:
 class OpenACCBindClause : public OpenACCClause {
 
 protected:
-  std::string binding = "";
-  bool is_string_literal = false;
+  OpenACCIdentifier binding;
 
 public:
   OpenACCBindClause() : OpenACCClause(ACCC_bind){};
 
   void setBinding(const std::string &_binding, bool _is_string_literal) {
-    binding = _binding;
-    is_string_literal = _is_string_literal;
+    binding = {_binding, _is_string_literal};
   }
-  const std::string &getBinding() const { return binding; }
-  bool isStringLiteral() const { return is_string_literal; }
+  void setBinding(const OpenACCIdentifier &_binding) { binding = _binding; }
+  const OpenACCIdentifier &getBinding() const { return binding; }
+  bool isStringLiteral() const { return binding.is_string_literal; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -369,13 +397,19 @@ public:
 class OpenACCCollapseClause : public OpenACCClause {
 
 protected:
-  std::vector<std::string> counts;
+  std::vector<OpenACCExpressionItem> counts;
 
 public:
   OpenACCCollapseClause() : OpenACCClause(ACCC_collapse){};
 
-  void addCountExpr(const std::string &expr) { counts.push_back(expr); }
-  const std::vector<std::string> &getCounts() const { return counts; }
+  void addCountExpr(const OpenACCExpressionItem &expr) { counts.push_back(expr); }
+  void addCountExpr(const std::string &expr,
+                    OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    addCountExpr(OpenACCExpressionItem{expr, sep});
+  }
+  const std::vector<OpenACCExpressionItem> &getCounts() const {
+    return counts;
+  }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -537,13 +571,17 @@ public:
 class OpenACCDefaultAsyncClause : public OpenACCClause {
 
 protected:
-  std::string async_expr;
+  OpenACCExpressionItem async_expr;
 
 public:
   OpenACCDefaultAsyncClause() : OpenACCClause(ACCC_default_async){};
 
-  void setAsyncExpr(const std::string &expr) { async_expr = expr; }
-  const std::string &getAsyncExpr() const { return async_expr; }
+  void setAsyncExpr(const OpenACCExpressionItem &expr) { async_expr = expr; }
+  void setAsyncExpr(const std::string &expr,
+                    OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    async_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getAsyncExpr() const { return async_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -584,17 +622,19 @@ public:
 class OpenACCDeviceClause : public OpenACCClause {
 
 protected:
-  std::vector<std::string> devices;
+  std::vector<OpenACCExpressionItem> devices;
 
 public:
   OpenACCDeviceClause() : OpenACCClause(ACCC_device) {}
 
-  void addDevice(const std::string &expr) {
-    if (std::find(devices.begin(), devices.end(), expr) == devices.end()) {
-      devices.push_back(expr);
-    }
+  void addDevice(const OpenACCExpressionItem &expr) { devices.push_back(expr); }
+  void addDevice(const std::string &expr,
+                 OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    addDevice(OpenACCExpressionItem{expr, sep});
   }
-  const std::vector<std::string> &getDevices() const { return devices; }
+  const std::vector<OpenACCExpressionItem> &getDevices() const {
+    return devices;
+  }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -635,13 +675,17 @@ public:
 class OpenACCIfClause : public OpenACCClause {
 
 protected:
-  std::string condition;
+  OpenACCExpressionItem condition;
 
 public:
   OpenACCIfClause() : OpenACCClause(ACCC_if) {}
 
-  void setCondition(const std::string &expr) { condition = expr; }
-  const std::string &getCondition() const { return condition; }
+  void setCondition(const OpenACCExpressionItem &expr) { condition = expr; }
+  void setCondition(const std::string &expr,
+                    OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    condition = {expr, sep};
+  }
+  const OpenACCExpressionItem &getCondition() const { return condition; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -654,7 +698,8 @@ class OpenACCGangClause : public OpenACCClause {
 public:
   struct GangArg {
     OpenACCGangArgKind kind;
-    std::string value;
+    OpenACCExpressionItem value;
+    OpenACCClauseSeparator separator = ACCC_CLAUSE_SEP_comma;
   };
 
 protected:
@@ -663,8 +708,12 @@ protected:
 public:
   OpenACCGangClause() : OpenACCClause(ACCC_gang){};
 
-  void addArg(OpenACCGangArgKind kind, const std::string &value) {
+  void addArg(OpenACCGangArgKind kind, const OpenACCExpressionItem &value) {
     args.push_back({kind, value});
+  }
+  void addArg(OpenACCGangArgKind kind, const std::string &value,
+              OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    addArg(kind, OpenACCExpressionItem{value, sep});
   }
   const std::vector<GangArg> &getArgs() const { return args; }
 
@@ -676,13 +725,17 @@ public:
 // Num_gangs Clause
 class OpenACCNumGangsClause : public OpenACCClause {
 protected:
-  std::vector<std::string> nums;
+  std::vector<OpenACCExpressionItem> nums;
 
 public:
   OpenACCNumGangsClause() : OpenACCClause(ACCC_num_gangs){};
 
-  void addNum(const std::string &expr) { nums.push_back(expr); }
-  const std::vector<std::string> &getNums() const { return nums; }
+  void addNum(const OpenACCExpressionItem &expr) { nums.push_back(expr); }
+  void addNum(const std::string &expr,
+              OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    nums.push_back(OpenACCExpressionItem{expr, sep});
+  }
+  const std::vector<OpenACCExpressionItem> &getNums() const { return nums; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -693,13 +746,17 @@ public:
 class OpenACCNumWorkersClause : public OpenACCClause {
 
 protected:
-  std::string num_expr;
+  OpenACCExpressionItem num_expr;
 
 public:
   OpenACCNumWorkersClause() : OpenACCClause(ACCC_num_workers){};
 
-  void setNumExpr(const std::string &expr) { num_expr = expr; }
-  const std::string &getNumExpr() const { return num_expr; }
+  void setNumExpr(const OpenACCExpressionItem &expr) { num_expr = expr; }
+  void setNumExpr(const std::string &expr,
+                  OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    num_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getNumExpr() const { return num_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -709,13 +766,17 @@ public:
 // Device_num Clause
 class OpenACCDeviceNumClause : public OpenACCClause {
 protected:
-  std::string device_expr;
+  OpenACCExpressionItem device_expr;
 
 public:
   OpenACCDeviceNumClause() : OpenACCClause(ACCC_device_num) {}
 
-  void setDeviceExpr(const std::string &expr) { device_expr = expr; }
-  const std::string &getDeviceExpr() const { return device_expr; }
+  void setDeviceExpr(const OpenACCExpressionItem &expr) { device_expr = expr; }
+  void setDeviceExpr(const std::string &expr,
+                     OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    device_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getDeviceExpr() const { return device_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -725,13 +786,21 @@ public:
 // Tile Clause
 class OpenACCTileClause : public OpenACCClause {
 protected:
-  std::vector<std::string> tile_sizes;
+  std::vector<OpenACCExpressionItem> tile_sizes;
 
 public:
   OpenACCTileClause() : OpenACCClause(ACCC_tile) {}
 
-  void addTileSize(const std::string &expr) { tile_sizes.push_back(expr); }
-  const std::vector<std::string> &getTileSizes() const { return tile_sizes; }
+  void addTileSize(const OpenACCExpressionItem &expr) {
+    tile_sizes.push_back(expr);
+  }
+  void addTileSize(const std::string &expr,
+                   OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    tile_sizes.push_back(OpenACCExpressionItem{expr, sep});
+  }
+  const std::vector<OpenACCExpressionItem> &getTileSizes() const {
+    return tile_sizes;
+  }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -763,13 +832,17 @@ public:
 class OpenACCSelfClause : public OpenACCVarListClause {
 
 protected:
-  std::string condition;
+  OpenACCExpressionItem condition;
 
 public:
   OpenACCSelfClause() : OpenACCVarListClause(ACCC_self) {}
 
-  void setCondition(const std::string &expr) { condition = expr; }
-  const std::string &getCondition() const { return condition; }
+  void setCondition(const OpenACCExpressionItem &expr) { condition = expr; }
+  void setCondition(const std::string &expr,
+                    OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    condition = {expr, sep};
+  }
+  const OpenACCExpressionItem &getCondition() const { return condition; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -780,7 +853,7 @@ public:
 class OpenACCVectorClause : public OpenACCClause {
 protected:
   OpenACCVectorClauseModifier modifier = ACCC_VECTOR_unspecified;
-  std::string length_expr;
+  OpenACCExpressionItem length_expr;
 
 public:
   OpenACCVectorClause() : OpenACCClause(ACCC_vector){};
@@ -790,8 +863,12 @@ public:
   void setModifier(OpenACCVectorClauseModifier _modifier) {
     modifier = _modifier;
   };
-  void setLengthExpr(const std::string &expr) { length_expr = expr; }
-  const std::string &getLengthExpr() const { return length_expr; }
+  void setLengthExpr(const OpenACCExpressionItem &expr) { length_expr = expr; }
+  void setLengthExpr(const std::string &expr,
+                     OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    length_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getLengthExpr() const { return length_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -802,13 +879,17 @@ public:
 class OpenACCVectorLengthClause : public OpenACCClause {
 
 protected:
-  std::string length_expr;
+  OpenACCExpressionItem length_expr;
 
 public:
   OpenACCVectorLengthClause() : OpenACCClause(ACCC_vector_length){};
 
-  void setLengthExpr(const std::string &expr) { length_expr = expr; }
-  const std::string &getLengthExpr() const { return length_expr; }
+  void setLengthExpr(const OpenACCExpressionItem &expr) { length_expr = expr; }
+  void setLengthExpr(const std::string &expr,
+                     OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    length_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getLengthExpr() const { return length_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -819,19 +900,27 @@ public:
 class OpenACCWaitClause : public OpenACCClause {
 
 protected:
-  std::string devnum = "";
+  OpenACCExpressionItem devnum;
   bool queues = false;
-  std::vector<std::string> async_ids;
+  std::vector<OpenACCExpressionItem> async_ids;
 
 public:
   OpenACCWaitClause() : OpenACCClause(ACCC_wait){};
 
-  void setDevnum(std::string _devnum) { devnum = _devnum; };
-  std::string getDevnum() { return devnum; };
+  void setDevnum(const OpenACCExpressionItem &_devnum) { devnum = _devnum; };
+  void setDevnum(const std::string &_devnum,
+                 OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    devnum = {_devnum, sep};
+  };
+  const OpenACCExpressionItem &getDevnum() const { return devnum; };
   void setQueues(bool _queues) { queues = _queues; };
   bool getQueues() { return queues; };
-  void addAsyncId(const std::string &expr) { async_ids.push_back(expr); }
-  const std::vector<std::string> &getAsyncIds() const { return async_ids; }
+  void addAsyncId(const OpenACCExpressionItem &expr) { async_ids.push_back(expr); }
+  void addAsyncId(const std::string &expr,
+                  OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    async_ids.push_back(OpenACCExpressionItem{expr, sep});
+  }
+  const std::vector<OpenACCExpressionItem> &getAsyncIds() const { return async_ids; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -865,7 +954,7 @@ class OpenACCWorkerClause : public OpenACCClause {
 
 protected:
   OpenACCWorkerClauseModifier modifier = ACCC_WORKER_unspecified;
-  std::string num_expr;
+  OpenACCExpressionItem num_expr;
 
 public:
   OpenACCWorkerClause() : OpenACCClause(ACCC_worker){};
@@ -875,8 +964,12 @@ public:
   void setModifier(OpenACCWorkerClauseModifier _modifier) {
     modifier = _modifier;
   };
-  void setNumExpr(const std::string &expr) { num_expr = expr; }
-  const std::string &getNumExpr() const { return num_expr; }
+  void setNumExpr(const OpenACCExpressionItem &expr) { num_expr = expr; }
+  void setNumExpr(const std::string &expr,
+                  OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
+    num_expr = {expr, sep};
+  }
+  const OpenACCExpressionItem &getNumExpr() const { return num_expr; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
