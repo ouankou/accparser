@@ -16,9 +16,6 @@ lexer grammar acclexer;
 @ lexer :: postinclude
 {
 /* lexer postinclude section */
-#ifndef _WIN32
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
 }
 // Directly preceds the lexer class declaration in the h file (e.g. for additional types etc.).
 
@@ -48,6 +45,8 @@ lexer grammar acclexer;
   int bracket_count = 0;
   int colon_count = 0;
   bool paren_processed = false;
+  bool data_clause_in_modifier_list = false;
+  bool gang_clause_allows_keyword_args = false;
 }
 // Appears in line with the other class member definitions in the cpp file.
 
@@ -183,11 +182,27 @@ AUTO
    : 'auto'
    ;
 
+ALWAYS
+   : 'always'
+   ;
+
+ALWAYSIN
+   : 'alwaysin'
+   ;
+
+ALWAYSOUT
+   : 'alwaysout'
+   ;
+
+FORCE
+   : 'force'
+   ;
+
 BIND
    : 'bind' [\p{White_Space}]*
    {
   if (_input->LA(1) == '(') {
-    pushMode(expr_clause);
+    pushMode(bind_clause);
   }
 }
    ;
@@ -197,24 +212,19 @@ CAPTURE
    ;
 
 COLLAPSE
-   : 'collapse'
-   {
-  // Allow colon-delimited modifiers like collapse(force:2) to stay inside the expression.
-  colon_count = 1;
-}
-     -> pushMode (expr_clause)
+   : 'collapse' -> pushMode (collapse_clause)
    ;
 
 PCOPY
-   : 'pcopy' -> pushMode (expr_clause)
+   : 'pcopy' -> pushMode (copy_clause)
    ;
 
 PRESENT_OR_COPY
-   : 'present_or_copy' -> pushMode (expr_clause)
+   : 'present_or_copy' -> pushMode (copy_clause)
    ;
 
 COPY
-   : 'copy' -> pushMode (expr_clause)
+   : 'copy' -> pushMode (copy_clause)
    ;
 
 PCOPYIN
@@ -282,11 +292,11 @@ DEVICE_RESIDENT
    ;
 
 DEVICE_TYPE
-   : 'device_type' -> pushMode (expr_clause)
+   : 'device_type' -> pushMode (device_type_clause)
    ;
 
 DTYPE
-   : 'dtype' -> type (DEVICE_TYPE) , pushMode (expr_clause)
+   : 'dtype' -> type (DEVICE_TYPE) , pushMode (device_type_clause)
    ;
 
 DEVICEPTR
@@ -304,8 +314,10 @@ FIRSTPRIVATE
 GANG
    : 'gang' [\p{White_Space}]*
    {
-  if (_input->LA(1) == '(')
+  if (_input->LA(1) == '(') {
+    gang_clause_allows_keyword_args = true;
     pushMode(gang_clause);
+  }
 }
    ;
 
@@ -329,6 +341,15 @@ LINK
    : 'link' -> pushMode (expr_clause)
    ;
 
+INDIRECT
+   : 'indirect' [\p{White_Space}]*
+   {
+      if (_input->LA(1) == '(') {
+          pushMode(expr_clause);
+      }
+   }
+   ;
+
 NOHOST
    : 'nohost'
    ;
@@ -342,7 +363,12 @@ NUM
    ;
 
 NUM_GANGS
-   : 'num_gangs' -> pushMode (gang_clause)
+   : 'num_gangs'
+   {
+  // Uses the same lexer mode as gang(...) but only carries expressions.
+  gang_clause_allows_keyword_args = false;
+}
+     -> pushMode (gang_clause)
    ;
 
 NUM_WORKERS
@@ -378,7 +404,12 @@ SEQ
    ;
 
 TILE
-   : 'tile' -> pushMode (gang_clause)
+   : 'tile'
+   {
+  // Uses the same lexer mode as gang(...) but only carries expressions.
+  gang_clause_allows_keyword_args = false;
+}
+     -> pushMode (gang_clause)
    ;
 
 USE_DEVICE
@@ -507,6 +538,91 @@ ROUTINE_LINE_END
    : [\n\r] -> skip
    ;
 
+mode copy_clause;
+COPY_LEFT_PAREN
+   : '(' [\p{White_Space}]*
+   {
+  setType(LEFT_PAREN);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  data_clause_in_modifier_list =
+      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
+      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+COPY_RIGHT_PAREN
+   : ')'
+   {
+  data_clause_in_modifier_list = false;
+}
+     -> type (RIGHT_PAREN) , popMode
+   ;
+
+COPY_COLON
+   : ':' [\p{White_Space}]*
+   {
+  setType(COLON);
+  data_clause_in_modifier_list = false;
+  bracket_count = 0;
+  colon_count = 1;
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+}
+   ;
+
+COPY_COMMA
+   : ',' [\p{White_Space}]*
+   {
+  skip();
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
+    pushMode(expression_mode);
+    parenthesis_global_count = 1;
+    parenthesis_local_count = 0;
+  }
+}
+   ;
+
+COPY_ALWAYSIN
+   : 'alwaysin' -> type(ALWAYSIN)
+   ;
+
+COPY_ALWAYSOUT
+   : 'alwaysout' -> type(ALWAYSOUT)
+   ;
+
+COPY_ALWAYS
+   : 'always' -> type(ALWAYS)
+   ;
+
+COPY_CAPTURE
+   : 'capture' -> type(CAPTURE)
+   ;
+
+COPY_READONLY
+   : 'readonly' -> type(READONLY)
+   ;
+
+COPY_ZERO
+   : 'zero' -> type(ZERO)
+   ;
+
+COPY_BLANK
+   : [\p{White_Space}]+ -> skip
+   ;
+
+COPY_LINE_END
+   : [\n\r] -> skip
+   ;
+
 mode copyin_clause;
 COPYIN_LEFT_PAREN
    : '(' [\p{White_Space}]*
@@ -514,39 +630,59 @@ COPYIN_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("readonly") == false) {
-    colon_count = 0;
+  data_clause_in_modifier_list =
+      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
+      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
     pushMode(expression_mode);
   }
 }
    ;
 
 COPYIN_RIGHT_PAREN
-   : ')' -> type (RIGHT_PAREN) , popMode
+   : ')'
+   {
+  data_clause_in_modifier_list = false;
+}
+     -> type (RIGHT_PAREN) , popMode
    ;
 
 READONLY
-   : 'readonly' [\p{White_Space}]*
-   {
-  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
-      (_input->LA(1) != ':')) {
-    colon_count = 1;
-    more();
-    pushMode(expression_mode);
-  }
-}
+   : 'readonly'
+   ;
+
+COPYIN_ALWAYSIN
+   : 'alwaysin' -> type(ALWAYSIN)
+   ;
+
+COPYIN_ALWAYSOUT
+   : 'alwaysout' -> type(ALWAYSOUT)
+   ;
+
+COPYIN_ALWAYS
+   : 'always' -> type(ALWAYS)
+   ;
+
+COPYIN_CAPTURE
+   : 'capture' -> type(CAPTURE)
+   ;
+
+COPYIN_ZERO
+   : 'zero' -> type(ZERO)
    ;
 
 COPYIN_COLON
    : ':' [\p{White_Space}]*
    {
-  if (_input->LA(1) == ':')
-    more();
-  else {
-    colon_count = 0;
-    setType(COLON);
-    pushMode(expression_mode);
-  }
+  setType(COLON);
+  data_clause_in_modifier_list = false;
+  bracket_count = 0;
+  colon_count = 1;
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
 }
    ;
 
@@ -554,10 +690,13 @@ COPYIN_COMMA
    : ',' [\p{White_Space}]*
    {
   skip();
-  pushMode(expression_mode);
-  parenthesis_global_count = 1;
-  parenthesis_local_count = 0;
-  colon_count = 0;
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
+    pushMode(expression_mode);
+    parenthesis_global_count = 1;
+    parenthesis_local_count = 0;
+  }
 }
    ;
 
@@ -576,39 +715,59 @@ COPYOUT_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("zero") == false) {
-    colon_count = 0;
+  data_clause_in_modifier_list =
+      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
+      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
     pushMode(expression_mode);
   }
 }
    ;
 
 COPYOUT_RIGHT_PAREN
-   : ')' -> type (RIGHT_PAREN) , popMode
+   : ')'
+   {
+  data_clause_in_modifier_list = false;
+}
+     -> type (RIGHT_PAREN) , popMode
    ;
 
 ZERO
-   : 'zero' [\p{White_Space}]*
-   {
-  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
-      (_input->LA(1) != ':')) {
-    colon_count = 1;
-    more();
-    pushMode(expression_mode);
-  }
-}
+   : 'zero'
+   ;
+
+COPYOUT_ALWAYSIN
+   : 'alwaysin' -> type(ALWAYSIN)
+   ;
+
+COPYOUT_ALWAYSOUT
+   : 'alwaysout' -> type(ALWAYSOUT)
+   ;
+
+COPYOUT_ALWAYS
+   : 'always' -> type(ALWAYS)
+   ;
+
+COPYOUT_CAPTURE
+   : 'capture' -> type(CAPTURE)
+   ;
+
+COPYOUT_READONLY
+   : 'readonly' -> type(READONLY)
    ;
 
 COPYOUT_COLON
    : ':' [\p{White_Space}]*
    {
-  if (_input->LA(1) == ':')
-    more();
-  else {
-    colon_count = 0;
-    setType(COLON);
-    pushMode(expression_mode);
-  }
+  setType(COLON);
+  data_clause_in_modifier_list = false;
+  bracket_count = 0;
+  colon_count = 1;
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
 }
    ;
 
@@ -616,10 +775,13 @@ COPYOUT_COMMA
    : ',' [\p{White_Space}]*
    {
   skip();
-  pushMode(expression_mode);
-  parenthesis_global_count = 1;
-  parenthesis_local_count = 0;
-  colon_count = 0;
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
+    pushMode(expression_mode);
+    parenthesis_global_count = 1;
+    parenthesis_local_count = 0;
+  }
 }
    ;
 
@@ -638,39 +800,59 @@ CREATE_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("zero") == false) {
+  data_clause_in_modifier_list =
+      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
+      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
     pushMode(expression_mode);
   }
 }
    ;
 
 CREATE_RIGHT_PAREN
-   : ')' -> type (RIGHT_PAREN) , popMode
+   : ')'
+   {
+  data_clause_in_modifier_list = false;
+}
+     -> type (RIGHT_PAREN) , popMode
    ;
 
 CREATE_ZERO
-   : 'zero' [\p{White_Space}]*
-   {
-  if ((_input->LA(1) == ':' && _input->LA(2) == ':') ||
-      (_input->LA(1) != ':')) {
-    colon_count = 1;
-    more();
-    pushMode(expression_mode);
-  }
-  setType(ZERO);
-}
+   : 'zero' -> type(ZERO)
+   ;
+
+CREATE_ALWAYSIN
+   : 'alwaysin' -> type(ALWAYSIN)
+   ;
+
+CREATE_ALWAYSOUT
+   : 'alwaysout' -> type(ALWAYSOUT)
+   ;
+
+CREATE_ALWAYS
+   : 'always' -> type(ALWAYS)
+   ;
+
+CREATE_CAPTURE
+   : 'capture' -> type(CAPTURE)
+   ;
+
+CREATE_READONLY
+   : 'readonly' -> type(READONLY)
    ;
 
 CREATE_COLON
    : ':' [\p{White_Space}]*
    {
-  if (_input->LA(1) == ':')
-    more();
-  else {
-    colon_count = 0;
-    setType(COLON);
-    pushMode(expression_mode);
-  }
+  setType(COLON);
+  data_clause_in_modifier_list = false;
+  bracket_count = 0;
+  colon_count = 1;
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
 }
    ;
 
@@ -678,9 +860,13 @@ CREATE_COMMA
    : ',' [\p{White_Space}]*
    {
   skip();
-  pushMode(expression_mode);
-  parenthesis_global_count = 1;
-  parenthesis_local_count = 0;
+  if (!data_clause_in_modifier_list) {
+    bracket_count = 0;
+    colon_count = 1;
+    pushMode(expression_mode);
+    parenthesis_global_count = 1;
+    parenthesis_local_count = 0;
+  }
 }
    ;
 
@@ -714,6 +900,49 @@ BLANK
    ;
 
 EXPR_LINE_END
+   : [\n\r] -> skip
+   ;
+
+mode collapse_clause;
+COLLAPSE_LEFT_PAREN
+   : '(' [\p{White_Space}]*
+   {
+  setType(LEFT_PAREN);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  if (lookAhead("force") == false) {
+    bracket_count = 0;
+    colon_count = 1;
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+COLLAPSE_RIGHT_PAREN
+   : ')' -> type (RIGHT_PAREN) , popMode
+   ;
+
+COLLAPSE_FORCE
+   : 'force' -> type(FORCE)
+   ;
+
+COLLAPSE_COLON
+   : ':' [\p{White_Space}]*
+   {
+  setType(COLON);
+  bracket_count = 0;
+  colon_count = 1;
+  pushMode(expression_mode);
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+}
+   ;
+
+COLLAPSE_BLANK
+   : [\p{White_Space}]+ -> skip
+   ;
+
+COLLAPSE_LINE_END
    : [\n\r] -> skip
    ;
 
@@ -1147,15 +1376,50 @@ WORKER_LINE_END
    : [\n\r] -> skip
    ;
 
+mode bind_clause;
+BIND_LEFT_PAREN
+   : '(' [\p{White_Space}]* -> type(LEFT_PAREN)
+   ;
+
+BIND_RIGHT_PAREN
+   : ')' -> type(RIGHT_PAREN) , popMode
+   ;
+
+STRING_LITERAL
+   : '"' ( '""' | '\\' . | ~["\r\n] )* '"'
+   | '\'' ( '\'' '\'' | '\\' . | ~['\r\n] )* '\''
+   ;
+
+BIND_NAME
+   : ~[ \t\f\r\n()] (~[ \t\f\r\n()])* -> type(EXPR)
+   ;
+
+BIND_BLANK
+   : [\p{White_Space}]+ -> skip
+   ;
+
+BIND_LINE_END
+   : [\n\r] -> skip
+   ;
+
 mode gang_clause;
 GANG_LEFT_PAREN
    : '(' [\p{White_Space}]*
    {
   setType(LEFT_PAREN);
-  pushMode(expression_mode);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+  // If this is a gang clause with key:value args, let the key tokens match.
+  // Otherwise, fall back to expression capture (tile/num_gangs or positional args).
+  if (gang_clause_allows_keyword_args &&
+      ((lookAhead("num") && _input->LA(4) == ':') ||
+       (lookAhead("dim") && _input->LA(4) == ':') ||
+       lookAhead("static"))) {
+    // Do not enter expression_mode yet; consume the key token first.
+  } else {
+    colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+    pushMode(expression_mode);
+  }
 }
    ;
 
@@ -1167,10 +1431,64 @@ GANG_COMMA
    : ',' [\p{White_Space}]*
    {
   skip();
+  parenthesis_global_count = 1;
+  parenthesis_local_count = 0;
+  if (gang_clause_allows_keyword_args &&
+      ((lookAhead("num") && _input->LA(4) == ':') ||
+       (lookAhead("dim") && _input->LA(4) == ':') ||
+       lookAhead("static"))) {
+    // Do not enter expression_mode yet; consume the key token first.
+  } else {
+    colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
+    pushMode(expression_mode);
+  }
+}
+   ;
+
+GANG_NUM
+   : 'num' [\p{White_Space}]*
+   {
+  if (_input->LA(1) != ':') {
+    // Not a key:value pair; treat as part of an expression.
+    setType(EXPR);
+    colon_count = 1;
+    pushMode(expression_mode);
+    parenthesis_global_count = 1;
+    parenthesis_local_count = 0;
+    more();
+  } else {
+    setType(NUM);
+  }
+}
+   ;
+
+DIM
+   : 'dim' [\p{White_Space}]*
+   {
+  if (_input->LA(1) != ':') {
+    setType(EXPR);
+    colon_count = 1;
+    pushMode(expression_mode);
+    parenthesis_global_count = 1;
+    parenthesis_local_count = 0;
+    more();
+  }
+}
+   ;
+
+STATIC
+   : 'static'
+   ;
+
+GANG_COLON
+   : ':' [\p{White_Space}]*
+   {
+  setType(COLON);
+  // After key:value separator, capture the value expression as EXPR.
+  colon_count = 1;
   pushMode(expression_mode);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
 }
    ;
 
@@ -1220,6 +1538,52 @@ EXPRESSION_LEFT_PAREN
 }
    ;
 
+mode device_type_clause;
+DEVICE_TYPE_LEFT_PAREN
+   : '(' [\p{White_Space}]* -> type(LEFT_PAREN)
+   ;
+
+DEVICE_TYPE_RIGHT_PAREN
+   : ')' -> type(RIGHT_PAREN), popMode
+   ;
+
+DEVICE_TYPE_COMMA
+   : ',' [\p{White_Space}]* -> skip
+   ;
+
+DEVICE_TYPE_HOST
+   : 'host' -> type(HOST)
+   ;
+
+ANY
+   : 'any' -> type(ANY)
+   ;
+
+DEVICE_TYPE_ANY_STAR
+   : '*' -> type(ANY)
+   ;
+
+MULTICORE
+   : 'multicore' -> type(MULTICORE)
+   ;
+
+DEVICE_TYPE_DEFAULT
+   : 'default' -> type(DEFAULT)
+   ;
+
+DEVICE_TYPE_ID
+   : [A-Za-z_] [A-Za-z0-9_]* -> type(EXPR)
+   ;
+
+DEVICE_TYPE_BLANK
+   : [\p{White_Space}]+ -> skip
+   ;
+
+DEVICE_TYPE_LINE_END
+   : [\n\r] -> skip
+   ;
+
+mode expression_mode;
 EXPRESSION_RIGHT_PAREN
    : ')' [\p{White_Space}]*
    {
@@ -1295,8 +1659,11 @@ EXPRESSION_CHAR
       // Track colon count for clause modifier separators (e.g., "readonly:")
       // Only track when NOT inside brackets (C array slices [1:10])
       if (bracket_count == 0) {
-        if (colon_count == 0) {
-          colon_count += 1;
+        // Preserve C++ scope operator '::' regardless of the current colon_count.
+        if (_input->LA(2) == ':') {
+          colon_count = 1;
+        } else if (colon_count == 0) {
+          colon_count = 1;
         } else {
           colon_count = 0;
         }
@@ -1311,3 +1678,4 @@ EXPRESSION_CHAR
   }
 }
    ;
+

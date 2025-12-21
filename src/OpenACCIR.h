@@ -61,17 +61,6 @@ protected:
   // the clause position in the vector of clauses in original order
   int clause_position = -1;
 
-  // Store original keyword text for alias preservation (e.g., pcreate vs create)
-  std::string original_keyword = "";
-
-  /* consider this is a struct of array, i.e.
-   * the expression/localtionLine/locationColumn are the same index are one
-   * record for an expression and its location
-   */
-  std::vector<OpenACCExpressionItem> expressions;
-
-  std::vector<ACC_SourceLocation> locations;
-
 public:
   OpenACCClause(OpenACCClauseKind k, int _line = 0, int _col = 0)
       : ACC_SourceLocation(_line, _col), kind(k){};
@@ -82,9 +71,15 @@ public:
     clause_position = _clause_position;
   };
 
-  void setOriginalKeyword(std::string keyword) { original_keyword = keyword; };
-  std::string getOriginalKeyword() { return original_keyword; };
+protected:
+  /* consider this is a struct of array, i.e.
+   * the expression/localtionLine/locationColumn are the same index are one
+   * record for an expression and its location
+   */
+  std::vector<OpenACCExpressionItem> expressions;
+  std::vector<ACC_SourceLocation> locations;
 
+public:
   // a list of expressions or variables that are language-specific for the
   // clause, accparser does not parse them, instead, it only stores them as
   // strings
@@ -141,6 +136,26 @@ public:
       out += vars[idx].text;
     }
     return out;
+  }
+};
+
+// Base for OpenACC data clauses that support modifier-lists (e.g.,
+// copyin(always, readonly: ...)).
+class OpenACCDataClause : public OpenACCVarListClause {
+protected:
+  OpenACCDataClauseVariant variant = ACCC_DATA_COPY_unspecified;
+  std::vector<OpenACCDataClauseModifierKind> modifiers;
+
+public:
+  OpenACCDataClause(OpenACCClauseKind k, int _line = 0, int _col = 0)
+      : OpenACCVarListClause(k, _line, _col) {}
+
+  void setVariant(OpenACCDataClauseVariant v) { variant = v; }
+  OpenACCDataClauseVariant getVariant() const { return variant; }
+
+  void addModifier(OpenACCDataClauseModifierKind modifier);
+  const std::vector<OpenACCDataClauseModifierKind> &getModifiers() const {
+    return modifiers;
   }
 };
 
@@ -414,6 +429,7 @@ class OpenACCCollapseClause : public OpenACCClause {
 
 protected:
   std::vector<OpenACCExpressionItem> counts;
+  bool force = false;
 
 public:
   OpenACCCollapseClause() : OpenACCClause(ACCC_collapse){};
@@ -426,6 +442,8 @@ public:
   const std::vector<OpenACCExpressionItem> &getCounts() const {
     return counts;
   }
+  void setForce(bool f) { force = f; }
+  bool isForce() const { return force; }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -433,10 +451,10 @@ public:
 };
 
 // Copy Clause
-class OpenACCCopyClause : public OpenACCVarListClause {
+class OpenACCCopyClause : public OpenACCDataClause {
 
 public:
-  OpenACCCopyClause() : OpenACCVarListClause(ACCC_copy) {}
+  OpenACCCopyClause() : OpenACCDataClause(ACCC_copy) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -444,19 +462,10 @@ public:
 };
 
 // Copyin Clause
-class OpenACCCopyinClause : public OpenACCVarListClause {
-
-protected:
-  OpenACCCopyinClauseModifier modifier = ACCC_COPYIN_unspecified;
+class OpenACCCopyinClause : public OpenACCDataClause {
 
 public:
-  OpenACCCopyinClause() : OpenACCVarListClause(ACCC_copyin){};
-
-  OpenACCCopyinClauseModifier getModifier() { return modifier; };
-
-  void setModifier(OpenACCCopyinClauseModifier _modifier) {
-    modifier = _modifier;
-  };
+  OpenACCCopyinClause() : OpenACCDataClause(ACCC_copyin) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -464,19 +473,10 @@ public:
 };
 
 // Copyout Clause
-class OpenACCCopyoutClause : public OpenACCVarListClause {
-
-protected:
-  OpenACCCopyoutClauseModifier modifier = ACCC_COPYOUT_unspecified;
+class OpenACCCopyoutClause : public OpenACCDataClause {
 
 public:
-  OpenACCCopyoutClause() : OpenACCVarListClause(ACCC_copyout){};
-
-  OpenACCCopyoutClauseModifier getModifier() { return modifier; };
-
-  void setModifier(OpenACCCopyoutClauseModifier _modifier) {
-    modifier = _modifier;
-  };
+  OpenACCCopyoutClause() : OpenACCDataClause(ACCC_copyout) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -484,19 +484,10 @@ public:
 };
 
 // Create Clause
-class OpenACCCreateClause : public OpenACCVarListClause {
-
-protected:
-  OpenACCCreateClauseModifier modifier = ACCC_CREATE_unspecified;
+class OpenACCCreateClause : public OpenACCDataClause {
 
 public:
-  OpenACCCreateClause() : OpenACCVarListClause(ACCC_create){};
-
-  OpenACCCreateClauseModifier getModifier() { return modifier; };
-
-  void setModifier(OpenACCCreateClauseModifier _modifier) {
-    modifier = _modifier;
-  };
+  OpenACCCreateClause() : OpenACCDataClause(ACCC_create) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -963,6 +954,7 @@ public:
   OpenACCDeviceTypeClause() : OpenACCClause(ACCC_device_type) {}
 
   void addDeviceType(OpenACCDeviceTypeKind kind);
+  void addUnknownDeviceType(const std::string &value);
   void addDeviceTypeString(const std::string &value);
   const std::vector<OpenACCDeviceTypeKind> &getDeviceTypes() const {
     return device_types;
@@ -997,6 +989,25 @@ public:
   }
   const OpenACCExpressionItem &getNumExpr() const { return num_expr; }
 
+  static OpenACCClause *addClause(OpenACCDirective *);
+  std::string toString();
+  void mergeClause(OpenACCDirective *, OpenACCClause *);
+};
+// Indirect Clause
+class OpenACCIndirectClause : public OpenACCClause {
+protected:
+  bool is_present = false;
+  OpenACCIdentifier val_id;
+
+public:
+  OpenACCIndirectClause() : OpenACCClause(ACCC_indirect) {}
+  void setPresent(bool val) { is_present = val; }
+  void setValue(const std::string &val, bool is_str = false) {
+    val_id = {val, is_str};
+    is_present = true;
+  }
+  const OpenACCIdentifier &getValue() const { return val_id; }
+  bool isPresent() const { return is_present; }
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
   void mergeClause(OpenACCDirective *, OpenACCClause *);

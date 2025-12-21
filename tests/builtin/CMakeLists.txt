@@ -22,6 +22,7 @@ set(TEST_FILES
     host_data_fortran.txt
     init.txt
     init_fortran.txt
+    indirect.txt
     loop.txt
     loop_fortran.txt
     kernels.txt

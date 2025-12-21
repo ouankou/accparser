@@ -65,6 +65,7 @@ enum OpenACCClauseKind {
     OPENACC_CLAUSE(if)
     OPENACC_CLAUSE(if_present)
     OPENACC_CLAUSE(independent)
+    OPENACC_CLAUSE(indirect)
     OPENACC_CLAUSE(link)
     OPENACC_CLAUSE(nohost)
     OPENACC_CLAUSE(no_create)
@@ -93,6 +94,19 @@ enum OpenACCClauseKind {
 enum OpenACCClauseSeparator {
   ACCC_CLAUSE_SEP_space,
   ACCC_CLAUSE_SEP_comma
+};
+
+// OpenACC data clause modifiers (e.g., copyin(always, readonly: ...)).
+enum OpenACCDataClauseModifierKind {
+#define OPENACC_DATA_CLAUSE_MODIFIER(Name) ACCC_DATA_MOD_##Name,
+    OPENACC_DATA_CLAUSE_MODIFIER(always)
+    OPENACC_DATA_CLAUSE_MODIFIER(alwaysin)
+    OPENACC_DATA_CLAUSE_MODIFIER(alwaysout)
+    OPENACC_DATA_CLAUSE_MODIFIER(capture)
+    OPENACC_DATA_CLAUSE_MODIFIER(readonly)
+    OPENACC_DATA_CLAUSE_MODIFIER(zero)
+    OPENACC_DATA_CLAUSE_MODIFIER(unknown)
+#undef OPENACC_DATA_CLAUSE_MODIFIER
 };
 
 enum OpenACCDeviceTypeKind {
@@ -128,6 +142,23 @@ enum OpenACCCopyoutClauseModifier {
     OPENACC_COPYOUT_MODIFIER(zero)
     OPENACC_COPYOUT_MODIFIER(unknown)
 #undef OPENACC_COPYOUT_MODIFIER
+};
+
+// OpenACC data clause variants (e.g., copy vs pcopy vs present_or_copy)
+enum OpenACCDataClauseVariant {
+  ACCC_DATA_COPY_unspecified,
+  ACCC_DATA_COPY_copy,
+  ACCC_DATA_COPY_pcopy,
+  ACCC_DATA_COPY_present_or_copy,
+  ACCC_DATA_COPYIN_copyin,
+  ACCC_DATA_COPYIN_pcopyin,
+  ACCC_DATA_COPYIN_present_or_copyin,
+  ACCC_DATA_COPYOUT_copyout,
+  ACCC_DATA_COPYOUT_pcopyout,
+  ACCC_DATA_COPYOUT_present_or_copyout,
+  ACCC_DATA_CREATE_create,
+  ACCC_DATA_CREATE_pcreate,
+  ACCC_DATA_CREATE_present_or_create
 };
 
 // OpenACC attributes for 'create' clause.
@@ -203,6 +234,7 @@ enum OpenACCAsyncModifier {
 enum OpenACCGangArgKind {
   ACCC_GANG_ARG_unknown,
   ACCC_GANG_ARG_num,
+  ACCC_GANG_ARG_num_no_keyword,
   ACCC_GANG_ARG_dim,
   ACCC_GANG_ARG_static,
   ACCC_GANG_ARG_other

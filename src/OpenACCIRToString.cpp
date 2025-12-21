@@ -5,7 +5,7 @@ std::string OpenACCDirective::generatePragmaString(std::string prefix,
                                                    std::string beginning_symbol,
                                                    std::string ending_symbol) {
 
-  if (this->getBaseLang() == ACC_Lang_Fortran && prefix == "#pragma acc ") {
+  if (this->getBaseLang() == ACC_Lang_Fortran && !prefix.empty()) {
     prefix = "!$acc ";
   };
   std::string result = prefix;
@@ -214,6 +214,9 @@ std::string OpenACCClause::toString() {
   case ACCC_independent:
     result += "independent ";
     break;
+  case ACCC_indirect:
+    return static_cast<OpenACCIndirectClause *>(this)
+        ->OpenACCIndirectClause::toString();
   case ACCC_link:
     return static_cast<OpenACCLinkClause *>(this)->OpenACCLinkClause::toString();
   case ACCC_nohost:
@@ -288,7 +291,7 @@ static std::string deviceTypeToString(OpenACCDeviceTypeKind kind) {
   case ACCC_DEVICE_TYPE_host:
     return "host";
   case ACCC_DEVICE_TYPE_any:
-    return "any";
+    return "*";
   case ACCC_DEVICE_TYPE_multicore:
     return "multicore";
   case ACCC_DEVICE_TYPE_default:
@@ -364,7 +367,11 @@ std::string OpenACCCollapseClause::toString() {
 
   for (const auto &val : vals) {
     result += "collapse";
-    result += "(" + val.text + ") ";
+    result += "(";
+    if (isForce()) {
+      result += "force:";
+    }
+    result += val.text + ") ";
   }
   return result;
 }
@@ -489,11 +496,18 @@ std::string OpenACCGangClause::toString() {
     case ACCC_GANG_ARG_num:
       parameter_string += "num:" + it->value.text;
       break;
+    case ACCC_GANG_ARG_num_no_keyword:
+      parameter_string += it->value.text;
+      break;
     case ACCC_GANG_ARG_dim:
       parameter_string += "dim:" + it->value.text;
       break;
     case ACCC_GANG_ARG_static:
-      parameter_string += "static:" + it->value.text;
+      if (it->value.text.empty()) {
+        parameter_string += "static";
+      } else {
+        parameter_string += "static:" + it->value.text;
+      }
       break;
     default:
       parameter_string += it->value.text;
@@ -565,18 +579,58 @@ std::string OpenACCBindClause::toString() {
 
 std::string OpenACCCopyinClause::toString() {
 
-  std::string keyword = original_keyword.empty() ? "copyin" : original_keyword;
-  std::string result = keyword;
-  std::string parameter_string = "";
-  OpenACCCopyinClauseModifier modifier = this->getModifier();
-  switch (modifier) {
-  case ACCC_COPYIN_readonly:
-    parameter_string = "readonly: ";
+  std::string keyword = "copyin";
+  switch (getVariant()) {
+  case ACCC_DATA_COPYIN_pcopyin:
+    keyword = "pcopyin";
     break;
-  default:;
-  };
-  parameter_string += this->varsToString();
-  if (!parameter_string.empty()) {
+  case ACCC_DATA_COPYIN_present_or_copyin:
+    keyword = "present_or_copyin";
+    break;
+  default:
+    break;
+  }
+  std::string result = keyword;
+  if (!getVars().empty()) {
+    std::string parameter_string;
+    bool first = true;
+    for (auto mod : getModifiers()) {
+      std::string name;
+      switch (mod) {
+      case ACCC_DATA_MOD_always:
+        name = "always";
+        break;
+      case ACCC_DATA_MOD_alwaysin:
+        name = "alwaysin";
+        break;
+      case ACCC_DATA_MOD_alwaysout:
+        name = "alwaysout";
+        break;
+      case ACCC_DATA_MOD_capture:
+        name = "capture";
+        break;
+      case ACCC_DATA_MOD_readonly:
+        name = "readonly";
+        break;
+      case ACCC_DATA_MOD_zero:
+        name = "zero";
+        break;
+      default:
+        name.clear();
+      }
+      if (name.empty()) {
+        continue;
+      }
+      if (!first) {
+        parameter_string += ", ";
+      }
+      parameter_string += name;
+      first = false;
+    }
+    if (!parameter_string.empty()) {
+      parameter_string += ": ";
+    }
+    parameter_string += varsToString();
     result += "(" + parameter_string + ") ";
   } else {
     result += " ";
@@ -587,18 +641,58 @@ std::string OpenACCCopyinClause::toString() {
 
 std::string OpenACCCopyoutClause::toString() {
 
-  std::string keyword = original_keyword.empty() ? "copyout" : original_keyword;
-  std::string result = keyword;
-  std::string parameter_string = "";
-  OpenACCCopyoutClauseModifier modifier = this->getModifier();
-  switch (modifier) {
-  case ACCC_COPYOUT_zero:
-    parameter_string = "zero: ";
+  std::string keyword = "copyout";
+  switch (getVariant()) {
+  case ACCC_DATA_COPYOUT_pcopyout:
+    keyword = "pcopyout";
     break;
-  default:;
-  };
-  parameter_string += this->varsToString();
-  if (!parameter_string.empty()) {
+  case ACCC_DATA_COPYOUT_present_or_copyout:
+    keyword = "present_or_copyout";
+    break;
+  default:
+    break;
+  }
+  std::string result = keyword;
+  if (!getVars().empty()) {
+    std::string parameter_string;
+    bool first = true;
+    for (auto mod : getModifiers()) {
+      std::string name;
+      switch (mod) {
+      case ACCC_DATA_MOD_always:
+        name = "always";
+        break;
+      case ACCC_DATA_MOD_alwaysin:
+        name = "alwaysin";
+        break;
+      case ACCC_DATA_MOD_alwaysout:
+        name = "alwaysout";
+        break;
+      case ACCC_DATA_MOD_capture:
+        name = "capture";
+        break;
+      case ACCC_DATA_MOD_readonly:
+        name = "readonly";
+        break;
+      case ACCC_DATA_MOD_zero:
+        name = "zero";
+        break;
+      default:
+        name.clear();
+      }
+      if (name.empty()) {
+        continue;
+      }
+      if (!first) {
+        parameter_string += ", ";
+      }
+      parameter_string += name;
+      first = false;
+    }
+    if (!parameter_string.empty()) {
+      parameter_string += ": ";
+    }
+    parameter_string += varsToString();
     result += "(" + parameter_string + ") ";
   } else {
     result += " ";
@@ -609,18 +703,58 @@ std::string OpenACCCopyoutClause::toString() {
 
 std::string OpenACCCreateClause::toString() {
 
-  std::string keyword = original_keyword.empty() ? "create" : original_keyword;
-  std::string result = keyword;
-  std::string parameter_string = "";
-  OpenACCCreateClauseModifier modifier = this->getModifier();
-  switch (modifier) {
-  case ACCC_CREATE_zero:
-    parameter_string = "zero: ";
+  std::string keyword = "create";
+  switch (getVariant()) {
+  case ACCC_DATA_CREATE_pcreate:
+    keyword = "pcreate";
     break;
-  default:;
-  };
-  parameter_string += this->varsToString();
-  if (!parameter_string.empty()) {
+  case ACCC_DATA_CREATE_present_or_create:
+    keyword = "present_or_create";
+    break;
+  default:
+    break;
+  }
+  std::string result = keyword;
+  if (!getVars().empty()) {
+    std::string parameter_string;
+    bool first = true;
+    for (auto mod : getModifiers()) {
+      std::string name;
+      switch (mod) {
+      case ACCC_DATA_MOD_always:
+        name = "always";
+        break;
+      case ACCC_DATA_MOD_alwaysin:
+        name = "alwaysin";
+        break;
+      case ACCC_DATA_MOD_alwaysout:
+        name = "alwaysout";
+        break;
+      case ACCC_DATA_MOD_capture:
+        name = "capture";
+        break;
+      case ACCC_DATA_MOD_readonly:
+        name = "readonly";
+        break;
+      case ACCC_DATA_MOD_zero:
+        name = "zero";
+        break;
+      default:
+        name.clear();
+      }
+      if (name.empty()) {
+        continue;
+      }
+      if (!first) {
+        parameter_string += ", ";
+      }
+      parameter_string += name;
+      first = false;
+    }
+    if (!parameter_string.empty()) {
+      parameter_string += ": ";
+    }
+    parameter_string += varsToString();
     result += "(" + parameter_string + ") ";
   } else {
     result += " ";
@@ -649,10 +783,59 @@ varClauseToString(const std::string &keyword,
 }
 
 std::string OpenACCCopyClause::toString() {
-  std::string keyword = original_keyword.empty() ? "copy" : original_keyword;
+  std::string keyword = "copy";
+  switch (getVariant()) {
+  case ACCC_DATA_COPY_pcopy:
+    keyword = "pcopy";
+    break;
+  case ACCC_DATA_COPY_present_or_copy:
+    keyword = "present_or_copy";
+    break;
+  default:
+    break;
+  }
   std::string result = keyword;
   if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
+    std::string parameter_string;
+    bool first = true;
+    for (auto mod : getModifiers()) {
+      std::string name;
+      switch (mod) {
+      case ACCC_DATA_MOD_always:
+        name = "always";
+        break;
+      case ACCC_DATA_MOD_alwaysin:
+        name = "alwaysin";
+        break;
+      case ACCC_DATA_MOD_alwaysout:
+        name = "alwaysout";
+        break;
+      case ACCC_DATA_MOD_capture:
+        name = "capture";
+        break;
+      case ACCC_DATA_MOD_readonly:
+        name = "readonly";
+        break;
+      case ACCC_DATA_MOD_zero:
+        name = "zero";
+        break;
+      default:
+        name.clear();
+      }
+      if (name.empty()) {
+        continue;
+      }
+      if (!first) {
+        parameter_string += ", ";
+      }
+      parameter_string += name;
+      first = false;
+    }
+    if (!parameter_string.empty()) {
+      parameter_string += ": ";
+    }
+    parameter_string += varsToString();
+    result += "(" + parameter_string + ") ";
   } else {
     result += " ";
   }
@@ -939,3 +1122,20 @@ std::string OpenACCWorkerClause::toString() {
 
   return result;
 };
+
+std::string OpenACCIndirectClause::toString() {
+  std::string result = "indirect";
+  if (isPresent()) {
+    if (!getValue().text.empty()) {
+      std::string val = getValue().text;
+      if (getValue().is_string_literal) {
+        val = "\"" + val +
+              "\""; // rough handling, relying on stored text being clean
+      }
+      result += "(" + val + ") ";
+    } else {
+      result += " ";
+    }
+  }
+  return result;
+}
