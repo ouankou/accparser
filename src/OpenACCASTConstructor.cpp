@@ -251,7 +251,7 @@ void OpenACCIRConstructor::exitCollapse_clause(
   if (ctx->FORCE()) {
     static_cast<OpenACCCollapseClause *>(current_clause)->setForce(true);
   }
-  ((OpenACCCollapseClause *)current_clause)
+  static_cast<OpenACCCollapseClause *>(current_clause)
       ->mergeClause(current_directive, current_clause);
 }
 
@@ -496,24 +496,18 @@ void OpenACCIRConstructor::exitGang_arg(accparser::Gang_argContext *ctx) {
   OpenACCGangArgKind kind = ACCC_GANG_ARG_other;
   std::string value_text;
 
+  if (ctx->int_expr()) {
+    value_text = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
+  }
+
   if (ctx->NUM()) {
     kind = ACCC_GANG_ARG_num;
-    if (ctx->int_expr()) {
-      value_text = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
-    }
   } else if (ctx->DIM()) {
     kind = ACCC_GANG_ARG_dim;
-    if (ctx->int_expr()) {
-      value_text = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
-    }
   } else if (ctx->STATIC()) {
     kind = ACCC_GANG_ARG_static;
-    if (ctx->int_expr()) {
-      value_text = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
-    }
   } else if (ctx->int_expr()) {
     kind = ACCC_GANG_ARG_num_no_keyword;
-    value_text = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
   }
 
   gang->addArg(kind, OpenACCExpressionItem{value_text, ACCC_CLAUSE_SEP_comma});
@@ -1027,6 +1021,12 @@ void OpenACCIRConstructor::enterIndirect_clause(
     std::string text =
         trimEnclosingWhiteSpace(ctx->name_or_string()->getText());
     bool is_str = ctx->name_or_string()->STRING_LITERAL() != nullptr;
+    if (is_str && text.length() >= 2) {
+      if ((text.front() == '"' && text.back() == '"') ||
+          (text.front() == '\'' && text.back() == '\'')) {
+        text = text.substr(1, text.length() - 2);
+      }
+    }
     indirect->setValue(text, is_str);
   }
 }

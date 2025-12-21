@@ -23,6 +23,7 @@ set(TEST_FILES
     init.txt
     init_fortran.txt
     indirect.txt
+    gang_whitespace.txt
     loop.txt
     loop_fortran.txt
     kernels.txt

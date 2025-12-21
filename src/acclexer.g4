@@ -35,6 +35,23 @@ lexer grammar acclexer;
     }
     return true;
   }
+  bool lookAheadKWArgs(std::string keyword) {
+    size_t i;
+    for (i = 0; i < keyword.size(); i++) {
+        if (_input->LA(i + 1) != (size_t)keyword[i]) {
+            return false;
+        }
+    }
+    size_t offset = keyword.size() + 1;
+    while (true) {
+        size_t nextChar = _input->LA(offset);
+        if (nextChar == ' ' || nextChar == '\t' || nextChar == '\r' || nextChar == '\n') {
+            offset++;
+        } else {
+            return nextChar == ':';
+        }
+    }
+  }
 }
 // Appears in the private part of the lexer in the h file.
 
@@ -1412,8 +1429,8 @@ GANG_LEFT_PAREN
   // If this is a gang clause with key:value args, let the key tokens match.
   // Otherwise, fall back to expression capture (tile/num_gangs or positional args).
   if (gang_clause_allows_keyword_args &&
-      ((lookAhead("num") && _input->LA(4) == ':') ||
-       (lookAhead("dim") && _input->LA(4) == ':') ||
+      (lookAheadKWArgs("num") ||
+       lookAheadKWArgs("dim") ||
        lookAhead("static"))) {
     // Do not enter expression_mode yet; consume the key token first.
   } else {
@@ -1434,8 +1451,8 @@ GANG_COMMA
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   if (gang_clause_allows_keyword_args &&
-      ((lookAhead("num") && _input->LA(4) == ':') ||
-       (lookAhead("dim") && _input->LA(4) == ':') ||
+      (lookAheadKWArgs("num") ||
+       lookAheadKWArgs("dim") ||
        lookAhead("static"))) {
     // Do not enter expression_mode yet; consume the key token first.
   } else {
