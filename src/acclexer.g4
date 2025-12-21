@@ -66,6 +66,29 @@ lexer grammar acclexer;
     }
     return true;
   }
+  bool hasColonInClause() {
+    size_t offset = 1;
+    int p_depth = 0;
+    int b_depth = 0;
+    while (true) {
+        size_t c = _input->LA(offset);
+        if (c == 0 || c == (size_t)-1) break; // EOF
+        if (c == '(') p_depth++;
+        else if (c == ')') {
+            if (p_depth == 0) return false; // End of clause
+            p_depth--;
+        }
+        else if (c == '[') b_depth++;
+        else if (c == ']') {
+             if (b_depth > 0) b_depth--;
+        }
+        else if (c == ':') {
+            if (p_depth == 0 && b_depth == 0) return true;
+        }
+        offset++;
+    }
+    return false;
+  }
 }
 // Appears in the private part of the lexer in the h file.
 
@@ -577,8 +600,9 @@ COPY_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
-      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
+      (lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+       lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero")) &&
+      hasColonInClause();
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -662,8 +686,9 @@ COPYIN_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
-      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
+      (lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+       lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero")) &&
+      hasColonInClause();
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -747,8 +772,9 @@ COPYOUT_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
-      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
+      (lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+       lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero")) &&
+      hasColonInClause();
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -832,8 +858,9 @@ CREATE_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
-      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
+      (lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+       lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero")) &&
+      hasColonInClause();
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;

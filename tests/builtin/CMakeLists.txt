@@ -25,6 +25,7 @@ set(TEST_FILES
     indirect.txt
     gang_whitespace.txt
     modifier_prefix.txt
+    keyword_vars.txt
     loop.txt
     loop_fortran.txt
     kernels.txt
