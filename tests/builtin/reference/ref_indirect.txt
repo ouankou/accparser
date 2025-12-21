@@ -1,3 +1,4 @@
 #pragma acc routine indirect
 #pragma acc routine indirect(foo)
 #pragma acc routine indirect(foo)
+#pragma acc routine indirect("foo")

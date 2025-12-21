@@ -1021,6 +1021,15 @@ void OpenACCIRConstructor::enterIndirect_clause(
     std::string text =
         trimEnclosingWhiteSpace(ctx->name_or_string()->getText());
     bool is_str = ctx->name_or_string()->STRING_LITERAL() != nullptr;
+    // Fallback: IF lexer returns EXPR for a quoted string (e.g. in expr_clause mode),
+    // detect it manually to preserve semantics.
+    if (!is_str && text.length() >= 2) {
+      if ((text.front() == '"' && text.back() == '"') ||
+          (text.front() == '\'' && text.back() == '\'')) {
+        is_str = true;
+      }
+    }
+    
     if (is_str && text.length() >= 2) {
       if ((text.front() == '"' && text.back() == '"') ||
           (text.front() == '\'' && text.back() == '\'')) {
