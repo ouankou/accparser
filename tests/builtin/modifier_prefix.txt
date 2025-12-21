@@ -1,0 +1,3 @@
+#pragma acc data copy(alwaysVar)
+#pragma acc data copyin(readonlyVar)
+#pragma acc parallel loop private(forceVar)

@@ -52,6 +52,20 @@ lexer grammar acclexer;
         }
     }
   }
+  bool lookAheadToken(std::string keyword) {
+    if (!lookAhead(keyword)) {
+      return false;
+    }
+    size_t nextChar = _input->LA(keyword.size() + 1);
+    // Check if next char is identifier part (alphanumeric or underscore)
+    if ((nextChar >= 'a' && nextChar <= 'z') ||
+        (nextChar >= 'A' && nextChar <= 'Z') ||
+        (nextChar >= '0' && nextChar <= '9') ||
+        nextChar == '_') {
+      return false;
+    }
+    return true;
+  }
 }
 // Appears in the private part of the lexer in the h file.
 
@@ -476,7 +490,7 @@ CACHE_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("readonly") == false) {
+  if (lookAheadToken("readonly") == false) {
     colon_count = 0;
     pushMode(expression_mode);
   }
@@ -563,8 +577,8 @@ COPY_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
-      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -648,8 +662,8 @@ COPYIN_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
-      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -733,8 +747,8 @@ COPYOUT_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
-      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -818,8 +832,8 @@ CREATE_LEFT_PAREN
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
   data_clause_in_modifier_list =
-      lookAhead("always") || lookAhead("alwaysin") || lookAhead("alwaysout") ||
-      lookAhead("capture") || lookAhead("readonly") || lookAhead("zero");
+      lookAheadToken("always") || lookAheadToken("alwaysin") || lookAheadToken("alwaysout") ||
+      lookAheadToken("capture") || lookAheadToken("readonly") || lookAheadToken("zero");
   if (!data_clause_in_modifier_list) {
     bracket_count = 0;
     colon_count = 1;
@@ -927,7 +941,7 @@ COLLAPSE_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("force") == false) {
+  if (lookAheadToken("force") == false) {
     bracket_count = 0;
     colon_count = 1;
     pushMode(expression_mode);
@@ -970,7 +984,7 @@ VECTOR_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("length") == false) {
+  if (lookAheadToken("length") == false) {
     colon_count = 0;
     pushMode(expression_mode);
   }
@@ -1271,7 +1285,7 @@ WAIT_LEFT_PAREN
   bracket_count = 0;
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("devnum") == false && lookAhead("queues") == false) {
+  if (lookAheadToken("devnum") == false && lookAheadToken("queues") == false) {
     colon_count = 0;
     pushMode(expression_mode);
   }
@@ -1311,7 +1325,7 @@ QUEUES
 WAIT_COLON
    : ':' [\p{White_Space}]*
    {
-  if (lookAhead("queues") == false) {
+  if (lookAheadToken("queues") == false) {
     bracket_count = 0;
     colon_count = 0;
     pushMode(expression_mode);
@@ -1349,7 +1363,7 @@ WORKER_LEFT_PAREN
   setType(LEFT_PAREN);
   parenthesis_global_count = 1;
   parenthesis_local_count = 0;
-  if (lookAhead("num") == false) {
+  if (lookAheadToken("num") == false) {
     pushMode(expression_mode);
   }
 }
@@ -1431,7 +1445,7 @@ GANG_LEFT_PAREN
   if (gang_clause_allows_keyword_args &&
       (lookAheadKWArgs("num") ||
        lookAheadKWArgs("dim") ||
-       lookAhead("static"))) {
+       lookAheadToken("static"))) {
     // Do not enter expression_mode yet; consume the key token first.
   } else {
     colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
@@ -1453,7 +1467,7 @@ GANG_COMMA
   if (gang_clause_allows_keyword_args &&
       (lookAheadKWArgs("num") ||
        lookAheadKWArgs("dim") ||
-       lookAhead("static"))) {
+       lookAheadToken("static"))) {
     // Do not enter expression_mode yet; consume the key token first.
   } else {
     colon_count = 1;  // Allow colons in gang/tile/num_gangs expressions
