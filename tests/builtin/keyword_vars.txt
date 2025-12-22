@@ -1,0 +1,5 @@
+#pragma acc data copy(always)
+#pragma acc data copyin(readonly)
+#pragma acc data copyout(zero)
+#pragma acc data copy(always, zero: x)
+#pragma acc parallel loop private(always)

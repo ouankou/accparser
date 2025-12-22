@@ -6,6 +6,18 @@
 // occurrences and ordering.
 bool OpenACCDirective::enable_clause_merging = false;
 
+void OpenACCDataClause::addModifier(OpenACCDataClauseModifierKind modifier) {
+  if (modifier == ACCC_DATA_MOD_unknown) {
+    return;
+  }
+  for (const auto &existing : modifiers) {
+    if (existing == modifier) {
+      return;
+    }
+  }
+  modifiers.push_back(modifier);
+}
+
 void OpenACCClause::addLangExpr(const OpenACCExpressionItem &expression,
                                 int line, int col) {
   if (isClauseMergingEnabled()) {
@@ -186,6 +198,10 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
   }
   case ACCC_num_gangs: {
     new_clause = OpenACCNumGangsClause::addClause(this);
+    break;
+  }
+  case ACCC_indirect: {
+    new_clause = OpenACCIndirectClause::addClause(this);
     break;
   }
   case ACCC_link: {
@@ -369,6 +385,9 @@ void OpenACCCollapseClause::mergeClause(OpenACCDirective *directive,
   for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
        ++it) {
     auto *existing = static_cast<OpenACCCollapseClause *>(*it);
+    if (existing->isForce() != incoming->isForce()) {
+      continue;
+    }
 
     bool merged = false;
     if (existing->getCounts().empty() && incoming->getCounts().empty()) {
@@ -569,28 +588,25 @@ OpenACCClause *OpenACCCopyinClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCCopyinClause::mergeClause(OpenACCDirective *directive,
                                       OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
   if (!OpenACCDirective::getClauseMerging()) {
     return;
   }
-
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_copyin);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
        it != current_clauses->end() - 1; it++) {
-    if (((OpenACCCopyinClause *)(*it))->getModifier() ==
-            ((OpenACCCopyinClause *)current_clause)->getModifier() &&
-        ((OpenACCClause *)(*it))->getOriginalKeyword() ==
-            ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
-      auto *existing = static_cast<OpenACCCopyinClause *>(*it);
-      auto *incoming = static_cast<OpenACCCopyinClause *>(current_clause);
+    auto *existing = static_cast<OpenACCCopyinClause *>(*it);
+    auto *incoming = static_cast<OpenACCCopyinClause *>(current_clause);
+    if (existing->getModifiers() == incoming->getModifiers() &&
+        existing->getVariant() == incoming->getVariant()) {
       mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
+      delete incoming;
       break;
     }
   }
-};
+}
 
 OpenACCClause *OpenACCCopyoutClause::addClause(OpenACCDirective *directive) {
 
@@ -615,28 +631,25 @@ OpenACCClause *OpenACCCopyoutClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCCopyoutClause::mergeClause(OpenACCDirective *directive,
                                        OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
   if (!OpenACCDirective::getClauseMerging()) {
     return;
   }
-
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_copyout);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
        it != current_clauses->end() - 1; it++) {
-    if (((OpenACCCopyoutClause *)(*it))->getModifier() ==
-            ((OpenACCCopyoutClause *)current_clause)->getModifier() &&
-        ((OpenACCClause *)(*it))->getOriginalKeyword() ==
-            ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
-      auto *existing = static_cast<OpenACCCopyoutClause *>(*it);
-      auto *incoming = static_cast<OpenACCCopyoutClause *>(current_clause);
+    auto *existing = static_cast<OpenACCCopyoutClause *>(*it);
+    auto *incoming = static_cast<OpenACCCopyoutClause *>(current_clause);
+    if (existing->getModifiers() == incoming->getModifiers() &&
+        existing->getVariant() == incoming->getVariant()) {
       mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
+      delete incoming;
       break;
     }
   }
-};
+}
 
 OpenACCClause *OpenACCCreateClause::addClause(OpenACCDirective *directive) {
 
@@ -661,28 +674,61 @@ OpenACCClause *OpenACCCreateClause::addClause(OpenACCDirective *directive) {
 
 void OpenACCCreateClause::mergeClause(OpenACCDirective *directive,
                                       OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
   if (!OpenACCDirective::getClauseMerging()) {
     return;
   }
-
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_create);
   for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
        it != current_clauses->end() - 1; it++) {
-    if (((OpenACCCreateClause *)(*it))->getModifier() ==
-            ((OpenACCCreateClause *)current_clause)->getModifier() &&
-        ((OpenACCClause *)(*it))->getOriginalKeyword() ==
-            ((OpenACCClause *)current_clause)->getOriginalKeyword()) {
-      auto *existing = static_cast<OpenACCCreateClause *>(*it);
-      auto *incoming = static_cast<OpenACCCreateClause *>(current_clause);
+    auto *existing = static_cast<OpenACCCreateClause *>(*it);
+    auto *incoming = static_cast<OpenACCCreateClause *>(current_clause);
+    if (existing->getModifiers() == incoming->getModifiers() &&
+        existing->getVariant() == incoming->getVariant()) {
       mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
+      delete incoming;
       break;
     }
   }
-};
+}
+
+OpenACCClause *OpenACCIndirectClause::addClause(OpenACCDirective *directive) {
+  auto *current_clauses = directive->getClauses(ACCC_indirect);
+  OpenACCIndirectClause *new_clause = nullptr;
+  if (current_clauses->empty()) {
+    new_clause = new OpenACCIndirectClause();
+    current_clauses->push_back(new_clause);
+    // Ensure the map entry exists (though getClauses usually handles it,
+    // addOpenACCClause does the insert)
+  } else {
+    // If multiple indirect clauses are present, we might want to return the
+    // existing one if we support merging, or create a new one. For routine,
+    // usually one is enough, but to be safe and match patterns:
+    if (OpenACCDirective::getClauseMerging()) {
+      new_clause =
+          static_cast<OpenACCIndirectClause *>(current_clauses->front());
+    } else {
+      new_clause = new OpenACCIndirectClause();
+      current_clauses->push_back(new_clause);
+    }
+  }
+  return new_clause;
+}
+
+void OpenACCIndirectClause::mergeClause(OpenACCDirective *directive,
+                                        OpenACCClause *clause) {
+  OpenACCIndirectClause *indirect_clause =
+      static_cast<OpenACCIndirectClause *>(clause);
+  if (indirect_clause->isPresent()) {
+    this->setPresent(true);
+    if (!indirect_clause->getValue().text.empty()) {
+      this->setValue(indirect_clause->getValue().text,
+                     indirect_clause->getValue().is_string_literal);
+    }
+  }
+}
 
 OpenACCClause *OpenACCNoCreateClause::addClause(OpenACCDirective *directive) {
   auto *all_clauses = directive->getAllClauses();
@@ -1810,24 +1856,6 @@ void OpenACCWorkerClause::mergeClause(OpenACCDirective *directive,
   }
 };
 
-static OpenACCDeviceTypeKind parseDeviceTypeKind(const std::string &value) {
-  std::string lower = value;
-  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-  if (lower == "host") {
-    return ACCC_DEVICE_TYPE_host;
-  }
-  if (lower == "any") {
-    return ACCC_DEVICE_TYPE_any;
-  }
-  if (lower == "multicore") {
-    return ACCC_DEVICE_TYPE_multicore;
-  }
-  if (lower == "default") {
-    return ACCC_DEVICE_TYPE_default;
-  }
-  return ACCC_DEVICE_TYPE_unknown;
-}
-
 void OpenACCDeviceTypeClause::addDeviceType(OpenACCDeviceTypeKind kind) {
   if (kind == ACCC_DEVICE_TYPE_unknown) {
     return;
@@ -1840,16 +1868,19 @@ void OpenACCDeviceTypeClause::addDeviceType(OpenACCDeviceTypeKind kind) {
   device_types.push_back(kind);
 }
 
-void OpenACCDeviceTypeClause::addDeviceTypeString(const std::string &value) {
-  OpenACCDeviceTypeKind kind = parseDeviceTypeKind(value);
-  if (kind == ACCC_DEVICE_TYPE_unknown) {
-    if (std::find(unknown_types.begin(), unknown_types.end(), value) ==
-        unknown_types.end()) {
-      unknown_types.push_back(value);
-    }
-  } else {
-    addDeviceType(kind);
+void OpenACCDeviceTypeClause::addUnknownDeviceType(const std::string &value) {
+  if (value.empty()) {
+    return;
   }
+  if (std::find(unknown_types.begin(), unknown_types.end(), value) !=
+      unknown_types.end()) {
+    return;
+  }
+  unknown_types.push_back(value);
+}
+
+void OpenACCDeviceTypeClause::addDeviceTypeString(const std::string &value) {
+  addUnknownDeviceType(value);
 }
 
 OpenACCClause *OpenACCDeviceTypeClause::addClause(OpenACCDirective *directive) {

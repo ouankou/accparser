@@ -17,9 +17,6 @@ options { tokenVocab = acclexer; }
 @ parser :: postinclude
 {
 /* parser postinclude section */
-#ifndef _WIN32
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
 }
 // Directly preceeds the parser class declaration in the h file (e.g. for additional types etc.).
 
@@ -136,8 +133,7 @@ openacc_directive
    ;
 
 atomic_directive
-   : ATOMIC
-   | ATOMIC atomic_clause
+   : ATOMIC atomic_clause? if_clause?
    ;
 
 atomic_clause
@@ -190,8 +186,8 @@ declare_clause_list
 declare_clauses
    : copy_clause
    | copyin_clause
-   | copyout_no_modifier_clause
-   | create_no_modifier_clause
+   | copyout_clause
+   | create_clause
    | device_resident_clause
    | deviceptr_clause
    | link_clause
@@ -270,7 +266,7 @@ enter_data_clause_list
 enter_data_clauses
    : async_clause
    | attach_clause
-   | copyin_no_modifier_clause
+   | copyin_clause
    | create_clause
    | if_clause
    | wait_argument_clause
@@ -286,7 +282,7 @@ exit_data_clause_list
 
 exit_data_clauses
    : async_clause
-   | copyout_no_modifier_clause
+   | copyout_clause
    | delete_clause
    | detach_clause
    | finalize_clause
@@ -493,6 +489,7 @@ routine_clauses
    : bind_clause
    | device_type_clause
    | gang_no_list_clause
+   | indirect_clause
    | nohost_clause
    | seq_clause
    | vector_no_modifier_clause
@@ -648,6 +645,7 @@ bind_clause
 
 name_or_string
    : EXPR
+   | STRING_LITERAL
    ;
 
 capture_clause
@@ -655,50 +653,40 @@ capture_clause
    ;
 
 collapse_clause
-   : COLLAPSE LEFT_PAREN const_int RIGHT_PAREN
+   : COLLAPSE LEFT_PAREN (FORCE COLON)? const_int RIGHT_PAREN
    ;
 
 copy_clause
    : (PCOPY | PRESENT_OR_COPY | COPY) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPY | PRESENT_OR_COPY | COPY) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
    ;
 
 copyin_clause
    : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN copyin_clause_modifier COLON var_list RIGHT_PAREN
-   ;
-
-copyin_clause_modifier
-   : READONLY
-   ;
-
-copyin_no_modifier_clause
-   : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
    ;
 
 copyout_clause
    : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN copyout_clause_modifier COLON var_list RIGHT_PAREN
-   ;
-
-copyout_clause_modifier
-   : ZERO
-   ;
-
-copyout_no_modifier_clause
-   : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
+   | (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
    ;
 
 create_clause
    : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN create_clause_modifier COLON var_list RIGHT_PAREN
+   | (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
    ;
 
-create_clause_modifier
-   : ZERO
+data_clause_modifier_list
+   : (data_clause_modifier COMMA | data_clause_modifier)+
    ;
 
-create_no_modifier_clause
-   : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
+data_clause_modifier
+   : ALWAYS
+   | ALWAYSIN
+   | ALWAYSOUT
+   | CAPTURE
+   | READONLY
+   | ZERO
    ;
 
 default_clause
@@ -739,7 +727,15 @@ device_type_clause
    ;
 
 device_type_list
-   : (var COMMA | var)+
+   : (device_type_item COMMA | device_type_item)+
+   ;
+
+device_type_item
+   : HOST
+   | ANY
+   | MULTICORE
+   | DEFAULT
+   | EXPR
    ;
 
 deviceptr_clause
@@ -760,7 +756,14 @@ gang_clause
    ;
 
 gang_arg_list
-   : (var COMMA | var)+
+   : (gang_arg COMMA | gang_arg)+
+   ;
+
+gang_arg
+   : NUM COLON int_expr
+   | DIM COLON int_expr
+   | STATIC (COLON int_expr)?
+   | int_expr
    ;
 
 gang_no_list_clause
@@ -781,6 +784,11 @@ if_present_clause
 
 independent_clause
    : INDEPENDENT
+   ;
+
+indirect_clause
+   : INDIRECT
+   | INDIRECT LEFT_PAREN name_or_string RIGHT_PAREN
    ;
 
 link_clause
@@ -971,4 +979,3 @@ var
    {
   cleanUp();
 }
-

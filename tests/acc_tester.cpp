@@ -80,7 +80,8 @@ int main(int argc, char **argv) {
   savePragmaList(acc_ast_list, filename_string);
 
   for (OpenACCDirective *directive : *acc_ast_list) {
-    delete directive;
+    if (directive)
+      delete directive;
   }
   delete acc_ast_list;
 

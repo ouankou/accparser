@@ -221,11 +221,12 @@ void OpenACCIRConstructor::enterBind_clause(
 
 void OpenACCIRConstructor::exitName_or_string(
     accparser::Name_or_stringContext *ctx) {
-  std::string expression = trimEnclosingWhiteSpace(ctx->getText());
-  bool is_string =
-      !expression.empty() && (expression.front() == '"' || expression.front() == '\'');
-  static_cast<OpenACCBindClause *>(current_clause)
-      ->setBinding(expression, is_string);
+  if (current_clause && current_clause->getKind() == ACCC_bind) {
+    std::string expression = trimEnclosingWhiteSpace(ctx->getText());
+    bool is_string = ctx->STRING_LITERAL() != nullptr;
+    static_cast<OpenACCBindClause *>(current_clause)
+        ->setBinding(expression, is_string);
+  }
 }
 
 void OpenACCIRConstructor::exitBind_clause(accparser::Bind_clauseContext *ctx) {
@@ -247,7 +248,10 @@ void OpenACCIRConstructor::enterCollapse_clause(
 
 void OpenACCIRConstructor::exitCollapse_clause(
     accparser::Collapse_clauseContext *ctx) {
-  ((OpenACCCollapseClause *)current_clause)
+  if (ctx->FORCE()) {
+    static_cast<OpenACCCollapseClause *>(current_clause)->setForce(true);
+  }
+  static_cast<OpenACCCollapseClause *>(current_clause)
       ->mergeClause(current_directive, current_clause);
 }
 
@@ -259,19 +263,31 @@ void OpenACCIRConstructor::enterAttach_clause(
 void OpenACCIRConstructor::enterCopy_clause(
     accparser::Copy_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copy);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
+  if (ctx->PCOPY()) {
+    static_cast<OpenACCCopyClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPY_pcopy);
+  } else if (ctx->PRESENT_OR_COPY()) {
+    static_cast<OpenACCCopyClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPY_present_or_copy);
+  } else {
+    static_cast<OpenACCCopyClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPY_copy);
+  }
 }
 
 void OpenACCIRConstructor::enterCopyin_clause(
     accparser::Copyin_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copyin);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
-  ((OpenACCCopyinClause *)current_clause)->setModifier(ACCC_COPYIN_unspecified);
-}
-
-void OpenACCIRConstructor::exitCopyin_clause_modifier(
-    accparser::Copyin_clause_modifierContext *ctx) {
-  ((OpenACCCopyinClause *)current_clause)->setModifier(ACCC_COPYIN_readonly);
+  if (ctx->PCOPYIN()) {
+    static_cast<OpenACCCopyinClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPYIN_pcopyin);
+  } else if (ctx->PRESENT_OR_COPYIN()) {
+    static_cast<OpenACCCopyinClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPYIN_present_or_copyin);
+  } else {
+    static_cast<OpenACCCopyinClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPYIN_copyin);
+  }
 }
 
 void OpenACCIRConstructor::exitCopyin_clause(
@@ -280,30 +296,19 @@ void OpenACCIRConstructor::exitCopyin_clause(
       ->mergeClause(current_directive, current_clause);
 }
 
-void OpenACCIRConstructor::enterCopyin_no_modifier_clause(
-    accparser::Copyin_no_modifier_clauseContext *ctx) {
-  current_clause = current_directive->addOpenACCClause(ACCC_copyin);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
-  ((OpenACCCopyinClause *)current_clause)->setModifier(ACCC_COPYIN_unspecified);
-}
-
-void OpenACCIRConstructor::exitCopyin_no_modifier_clause(
-    accparser::Copyin_no_modifier_clauseContext *ctx) {
-  ((OpenACCCopyinClause *)current_clause)
-      ->mergeClause(current_directive, current_clause);
-}
-
 void OpenACCIRConstructor::enterCopyout_clause(
     accparser::Copyout_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_copyout);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
-  ((OpenACCCopyoutClause *)current_clause)
-      ->setModifier(ACCC_COPYOUT_unspecified);
-}
-
-void OpenACCIRConstructor::exitCopyout_clause_modifier(
-    accparser::Copyout_clause_modifierContext *ctx) {
-  ((OpenACCCopyoutClause *)current_clause)->setModifier(ACCC_COPYOUT_zero);
+  if (ctx->PCOPYOUT()) {
+    static_cast<OpenACCCopyoutClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPYOUT_pcopyout);
+  } else if (ctx->PRESENT_OR_COPYOUT()) {
+    static_cast<OpenACCCopyoutClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPYOUT_present_or_copyout);
+  } else {
+    static_cast<OpenACCCopyoutClause *>(current_clause)
+        ->setVariant(ACCC_DATA_COPYOUT_copyout);
+  }
 }
 
 void OpenACCIRConstructor::exitCopyout_clause(
@@ -312,25 +317,19 @@ void OpenACCIRConstructor::exitCopyout_clause(
       ->mergeClause(current_directive, current_clause);
 }
 
-void OpenACCIRConstructor::enterCopyout_no_modifier_clause(
-    accparser::Copyout_no_modifier_clauseContext *ctx) {
-  current_clause = current_directive->addOpenACCClause(ACCC_copyout);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
-  ((OpenACCCopyoutClause *)current_clause)
-      ->setModifier(ACCC_COPYOUT_unspecified);
-}
-
-void OpenACCIRConstructor::exitCopyout_no_modifier_clause(
-    accparser::Copyout_no_modifier_clauseContext *ctx) {
-  ((OpenACCCopyoutClause *)current_clause)
-      ->mergeClause(current_directive, current_clause);
-}
-
 void OpenACCIRConstructor::enterCreate_clause(
     accparser::Create_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_create);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
-  ((OpenACCCreateClause *)current_clause)->setModifier(ACCC_CREATE_unspecified);
+  if (ctx->PCREATE()) {
+    static_cast<OpenACCCreateClause *>(current_clause)
+        ->setVariant(ACCC_DATA_CREATE_pcreate);
+  } else if (ctx->PRESENT_OR_CREATE()) {
+    static_cast<OpenACCCreateClause *>(current_clause)
+        ->setVariant(ACCC_DATA_CREATE_present_or_create);
+  } else {
+    static_cast<OpenACCCreateClause *>(current_clause)
+        ->setVariant(ACCC_DATA_CREATE_create);
+  }
 }
 
 void OpenACCIRConstructor::exitCreate_clause(
@@ -339,22 +338,32 @@ void OpenACCIRConstructor::exitCreate_clause(
       ->mergeClause(current_directive, current_clause);
 }
 
-void OpenACCIRConstructor::exitCreate_clause_modifier(
-    accparser::Create_clause_modifierContext *ctx) {
-  ((OpenACCCreateClause *)current_clause)->setModifier(ACCC_CREATE_zero);
-}
+void OpenACCIRConstructor::exitData_clause_modifier(
+    accparser::Data_clause_modifierContext *ctx) {
+  if (!current_clause) {
+    return;
+  }
+  auto *data_clause = dynamic_cast<OpenACCDataClause *>(current_clause);
+  if (!data_clause) {
+    return;
+  }
 
-void OpenACCIRConstructor::enterCreate_no_modifier_clause(
-    accparser::Create_no_modifier_clauseContext *ctx) {
-  current_clause = current_directive->addOpenACCClause(ACCC_create);
-  current_clause->setOriginalKeyword(ctx->getStart()->getText());
-  ((OpenACCCreateClause *)current_clause)->setModifier(ACCC_CREATE_unspecified);
-}
+  OpenACCDataClauseModifierKind modifier = ACCC_DATA_MOD_unknown;
+  if (ctx->ALWAYS()) {
+    modifier = ACCC_DATA_MOD_always;
+  } else if (ctx->ALWAYSIN()) {
+    modifier = ACCC_DATA_MOD_alwaysin;
+  } else if (ctx->ALWAYSOUT()) {
+    modifier = ACCC_DATA_MOD_alwaysout;
+  } else if (ctx->CAPTURE()) {
+    modifier = ACCC_DATA_MOD_capture;
+  } else if (ctx->READONLY()) {
+    modifier = ACCC_DATA_MOD_readonly;
+  } else if (ctx->ZERO()) {
+    modifier = ACCC_DATA_MOD_zero;
+  }
 
-void OpenACCIRConstructor::exitCreate_no_modifier_clause(
-    accparser::Create_no_modifier_clauseContext *ctx) {
-  ((OpenACCCreateClause *)current_clause)
-      ->mergeClause(current_directive, current_clause);
+  data_clause->addModifier(modifier);
 }
 
 void OpenACCIRConstructor::enterDefault_clause(
@@ -364,12 +373,12 @@ void OpenACCIRConstructor::enterDefault_clause(
 
 void OpenACCIRConstructor::exitDefault_kind(
     accparser::Default_kindContext *ctx) {
-  std::string expression = trimEnclosingWhiteSpace(ctx->getText());
-  OpenACCDefaultClauseKind kind = ACCC_DEFAULT_unspecified;
-  if (expression == "none")
+  OpenACCDefaultClauseKind kind = ACCC_DEFAULT_unknown;
+  if (ctx->NONE()) {
     kind = ACCC_DEFAULT_none;
-  else if (expression == "present")
+  } else if (ctx->PRESENT()) {
     kind = ACCC_DEFAULT_present;
+  }
   ((OpenACCDefaultClause *)current_clause)->setKind(kind);
 };
 
@@ -432,6 +441,26 @@ void OpenACCIRConstructor::enterDevice_type_clause(
   current_clause = current_directive->addOpenACCClause(ACCC_device_type);
 }
 
+void OpenACCIRConstructor::exitDevice_type_item(
+    accparser::Device_type_itemContext *ctx) {
+  if (!current_clause || current_clause->getKind() != ACCC_device_type) {
+    return;
+  }
+  auto *clause = static_cast<OpenACCDeviceTypeClause *>(current_clause);
+  if (ctx->HOST()) {
+    clause->addDeviceType(ACCC_DEVICE_TYPE_host);
+  } else if (ctx->ANY()) {
+    clause->addDeviceType(ACCC_DEVICE_TYPE_any);
+  } else if (ctx->MULTICORE()) {
+    clause->addDeviceType(ACCC_DEVICE_TYPE_multicore);
+  } else if (ctx->DEFAULT()) {
+    clause->addDeviceType(ACCC_DEVICE_TYPE_default);
+  } else if (ctx->EXPR()) {
+    clause->addUnknownDeviceType(
+        trimEnclosingWhiteSpace(ctx->EXPR()->getText()));
+  }
+}
+
 void OpenACCIRConstructor::enterDeviceptr_clause(
     accparser::Deviceptr_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_deviceptr);
@@ -457,6 +486,32 @@ void OpenACCIRConstructor::exitGang_clause(accparser::Gang_clauseContext *ctx) {
   ((OpenACCGangClause *)current_clause)
       ->mergeClause(current_directive, current_clause);
 };
+
+void OpenACCIRConstructor::exitGang_arg(accparser::Gang_argContext *ctx) {
+  if (!current_clause || current_clause->getKind() != ACCC_gang) {
+    return;
+  }
+  auto *gang = static_cast<OpenACCGangClause *>(current_clause);
+
+  OpenACCGangArgKind kind = ACCC_GANG_ARG_other;
+  std::string value_text;
+
+  if (ctx->int_expr()) {
+    value_text = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
+  }
+
+  if (ctx->NUM()) {
+    kind = ACCC_GANG_ARG_num;
+  } else if (ctx->DIM()) {
+    kind = ACCC_GANG_ARG_dim;
+  } else if (ctx->STATIC()) {
+    kind = ACCC_GANG_ARG_static;
+  } else if (ctx->int_expr()) {
+    kind = ACCC_GANG_ARG_num_no_keyword;
+  }
+
+  gang->addArg(kind, OpenACCExpressionItem{value_text, ACCC_CLAUSE_SEP_comma});
+}
 
 void OpenACCIRConstructor::enterNohost_clause(
     accparser::Nohost_clauseContext *ctx) {
@@ -555,43 +610,42 @@ void OpenACCIRConstructor::enterReduction_clause(
 
 void OpenACCIRConstructor::exitReduction_operator(
     accparser::Reduction_operatorContext *ctx) {
-  std::string expression = trimEnclosingWhiteSpace(ctx->getText());
-  OpenACCReductionClauseOperator reduction_operator =
-      ACCC_REDUCTION_unspecified;
-  if (expression == "+")
+  OpenACCReductionClauseOperator reduction_operator = ACCC_REDUCTION_unknown;
+  if (ctx->ADD()) {
     reduction_operator = ACCC_REDUCTION_add;
-  else if (expression == "-")
+  } else if (ctx->SUB()) {
     reduction_operator = ACCC_REDUCTION_sub;
-  else if (expression == "*")
+  } else if (ctx->MUL()) {
     reduction_operator = ACCC_REDUCTION_mul;
-  else if (expression == "max")
+  } else if (ctx->MAX()) {
     reduction_operator = ACCC_REDUCTION_max;
-  else if (expression == "min")
+  } else if (ctx->MIN()) {
     reduction_operator = ACCC_REDUCTION_min;
-  else if (expression == "&")
+  } else if (ctx->BITAND()) {
     reduction_operator = ACCC_REDUCTION_bitand;
-  else if (expression == "|")
+  } else if (ctx->BITOR()) {
     reduction_operator = ACCC_REDUCTION_bitor;
-  else if (expression == "^")
+  } else if (ctx->BITXOR()) {
     reduction_operator = ACCC_REDUCTION_bitxor;
-  else if (expression == "&&")
+  } else if (ctx->LOGAND()) {
     reduction_operator = ACCC_REDUCTION_logand;
-  else if (expression == "||")
+  } else if (ctx->LOGOR()) {
     reduction_operator = ACCC_REDUCTION_logor;
-  else if (expression == ".and." || expression == ".AND.")
+  } else if (ctx->FORT_AND()) {
     reduction_operator = ACCC_REDUCTION_fort_and;
-  else if (expression == ".or." || expression == ".OR.")
+  } else if (ctx->FORT_OR()) {
     reduction_operator = ACCC_REDUCTION_fort_or;
-  else if (expression == ".eqv." || expression == ".EQV.")
+  } else if (ctx->FORT_EQV()) {
     reduction_operator = ACCC_REDUCTION_fort_eqv;
-  else if (expression == ".neqv." || expression == ".NEQV.")
+  } else if (ctx->FORT_NEQV()) {
     reduction_operator = ACCC_REDUCTION_fort_neqv;
-  else if (expression == "iand" || expression == "IAND")
+  } else if (ctx->FORT_IAND()) {
     reduction_operator = ACCC_REDUCTION_fort_iand;
-  else if (expression == "ior" || expression == "IOR")
+  } else if (ctx->FORT_IOR()) {
     reduction_operator = ACCC_REDUCTION_fort_ior;
-  else if (expression == "ieor" || expression == "IEOR")
+  } else if (ctx->FORT_IEOR()) {
     reduction_operator = ACCC_REDUCTION_fort_ieor;
+  }
   ((OpenACCReductionClause *)current_clause)->setOperator(reduction_operator);
 };
 
@@ -828,6 +882,9 @@ void OpenACCIRConstructor::exitInt_expr(accparser::Int_exprContext *ctx) {
         kind == ACCC_vector_length) {
       return;
     }
+    if (kind == ACCC_gang) {
+      return;
+    }
     if (kind == ACCC_wait) {
       static_cast<OpenACCWaitClause *>(current_clause)
           ->addAsyncId(OpenACCExpressionItem{
@@ -880,11 +937,6 @@ void OpenACCIRConstructor::exitVar(accparser::VarContext *ctx) {
     ((OpenACCCacheDirective *)current_directive)->addVar(expression);
   } else {
     if (current_clause) {
-      if (current_clause->getKind() == ACCC_device_type) {
-        static_cast<OpenACCDeviceTypeClause *>(current_clause)
-            ->addDeviceTypeString(expression);
-        return;
-      }
       if (current_clause->getKind() == ACCC_device) {
         static_cast<OpenACCDeviceClause *>(current_clause)
             ->addDevice(expression);
@@ -909,29 +961,6 @@ void OpenACCIRConstructor::exitVar(accparser::VarContext *ctx) {
           current_clause->getKind() == ACCC_host ||
           current_clause->getKind() == ACCC_self) {
         static_cast<OpenACCVarListClause *>(current_clause)->addVar(expression);
-        return;
-      }
-      if (current_clause->getKind() == ACCC_gang) {
-        auto *gang = static_cast<OpenACCGangClause *>(current_clause);
-        OpenACCGangArgKind kind = ACCC_GANG_ARG_other;
-        OpenACCExpressionItem value{expression, ACCC_CLAUSE_SEP_comma};
-        size_t colon = expression.find(':');
-        if (colon != std::string::npos) {
-          std::string key = trimEnclosingWhiteSpace(expression.substr(0, colon));
-          value.text = trimEnclosingWhiteSpace(expression.substr(colon + 1));
-          std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-          if (key == "num") {
-            kind = ACCC_GANG_ARG_num;
-          } else if (key == "dim") {
-            kind = ACCC_GANG_ARG_dim;
-          } else if (key == "static") {
-            kind = ACCC_GANG_ARG_static;
-          } else {
-            kind = ACCC_GANG_ARG_other;
-            value.text = expression;
-          }
-        }
-        gang->addArg(kind, value);
         return;
       }
       if (current_clause->getKind() == ACCC_tile) {
@@ -980,4 +1009,43 @@ OpenACCDirective *parseOpenACC(std::string source) {
   walker.walk(listener.get(), tree);
 
   return current_directive;
+}
+
+// OpenACCIRConstructor::enterIndirect_clause implementation
+void OpenACCIRConstructor::enterIndirect_clause(
+    accparser::Indirect_clauseContext *ctx) {
+  current_clause = current_directive->addOpenACCClause(ACCC_indirect);
+  auto *indirect = static_cast<OpenACCIndirectClause *>(current_clause);
+  indirect->setPresent(true);
+  if (ctx->name_or_string()) {
+    std::string text =
+        trimEnclosingWhiteSpace(ctx->name_or_string()->getText());
+    bool is_str = ctx->name_or_string()->STRING_LITERAL() != nullptr;
+    // Fallback: IF lexer returns EXPR for a quoted string (e.g. in expr_clause mode),
+    // detect it manually to preserve semantics.
+    if (!is_str && text.length() >= 2) {
+      if ((text.front() == '"' && text.back() == '"') ||
+          (text.front() == '\'' && text.back() == '\'')) {
+        is_str = true;
+      }
+    }
+    
+    if (is_str && text.length() >= 2) {
+      if ((text.front() == '"' && text.back() == '"') ||
+          (text.front() == '\'' && text.back() == '\'')) {
+        text = text.substr(1, text.length() - 2);
+      }
+    }
+    indirect->setValue(text, is_str);
+  }
+}
+
+void OpenACCIRConstructor::exitIndirect_clause(
+    accparser::Indirect_clauseContext *ctx) {
+  if (current_clause && current_clause->getKind() == ACCC_indirect) {
+    if (auto *indirect =
+            dynamic_cast<OpenACCIndirectClause *>(current_clause)) {
+      indirect->mergeClause(current_directive, current_clause);
+    }
+  }
 }

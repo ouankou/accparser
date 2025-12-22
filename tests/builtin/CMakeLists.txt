@@ -22,6 +22,10 @@ set(TEST_FILES
     host_data_fortran.txt
     init.txt
     init_fortran.txt
+    indirect.txt
+    gang_whitespace.txt
+    modifier_prefix.txt
+    keyword_vars.txt
     loop.txt
     loop_fortran.txt
     kernels.txt

@@ -1,0 +1,3 @@
+#pragma acc parallel loop gang(num: 1)
+#pragma acc parallel loop gang(num : 1)
+#pragma acc parallel loop gang( dim :  2 )
