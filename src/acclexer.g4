@@ -398,9 +398,9 @@ LINK
 INDIRECT
    : 'indirect' [\p{White_Space}]*
    {
-      if (_input->LA(1) == '(') {
-          pushMode(expr_clause);
-      }
+  if (_input->LA(1) == '(') {
+    pushMode(bind_clause);
+  }
    }
    ;
 
@@ -1736,4 +1736,3 @@ EXPRESSION_CHAR
   }
 }
    ;
-

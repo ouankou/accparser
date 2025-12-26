@@ -6,6 +6,21 @@
 // occurrences and ordering.
 bool OpenACCDirective::enable_clause_merging = false;
 
+OpenACCDirective::~OpenACCDirective() {
+  std::unordered_set<OpenACCClause *> unique_clauses;
+  for (const auto &entry : clauses) {
+    for (auto *clause : entry.second) {
+      unique_clauses.insert(clause);
+    }
+  }
+  for (auto *clause : clauses_in_original_order) {
+    unique_clauses.insert(clause);
+  }
+  for (auto *clause : unique_clauses) {
+    delete clause;
+  }
+}
+
 void OpenACCDataClause::addModifier(OpenACCDataClauseModifierKind modifier) {
   if (modifier == ACCC_DATA_MOD_unknown) {
     return;
@@ -42,16 +57,10 @@ void OpenACCClause::addLangExpr(const OpenACCExpressionItem &expression,
 OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
 
   OpenACCClauseKind kind = (OpenACCClauseKind)k;
-  // Check whether the given kind of clause exists first.
-  // If not, create an empty vector.
-  if (clauses.count(kind) == 0) {
-    clauses.insert(std::pair<OpenACCClauseKind, std::vector<OpenACCClause *> *>(
-        kind, new std::vector<OpenACCClause *>));
-  };
   std::vector<OpenACCClause *> *current_clauses = getClauses(kind);
   va_list args;
   va_start(args, k);
-  OpenACCClause *new_clause = NULL;
+  OpenACCClause *new_clause = nullptr;
 
   switch (kind) {
   case ACCC_auto:
@@ -64,11 +73,9 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
   case ACCC_seq:
   case ACCC_update:
   case ACCC_write: {
-    if (current_clauses->size() == 0) {
+    if (current_clauses->empty()) {
       new_clause = new OpenACCClause(kind);
-      current_clauses = new std::vector<OpenACCClause *>();
       current_clauses->push_back(new_clause);
-      clauses[kind] = current_clauses;
     } else {
       if (kind == ACCC_if) {
         std::cerr << "Cannot have two if clauses for the directive " << kind
@@ -86,12 +93,8 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
     break;
   }
   case ACCC_device_type: {
-    if (current_clauses->size() == 0 || !enable_clause_merging) {
+    if (current_clauses->empty() || !enable_clause_merging) {
       new_clause = OpenACCDeviceTypeClause::addClause(this);
-      if (current_clauses->size() == 0) {
-        current_clauses = new std::vector<OpenACCClause *>();
-        clauses[kind] = current_clauses;
-      }
       current_clauses->push_back(new_clause);
     } else {
       new_clause = current_clauses->at(0);
@@ -100,11 +103,9 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
   }
   case ACCC_gang: {
     if (this->getKind() == ACCD_routine) {
-      if (current_clauses->size() == 0) {
+      if (current_clauses->empty()) {
         new_clause = new OpenACCGangClause();
-        current_clauses = new std::vector<OpenACCClause *>();
         current_clauses->push_back(new_clause);
-        clauses[kind] = current_clauses;
       } else {
         /* we can have multiple clause and we merge them together now, thus we
          * return the object that is already created */
@@ -112,11 +113,9 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
       }
       break;
     } else {
-      if (current_clauses->size() == 0) {
+      if (current_clauses->empty()) {
         new_clause = new OpenACCGangClause();
-        current_clauses = new std::vector<OpenACCClause *>();
         current_clauses->push_back(new_clause);
-        clauses[kind] = current_clauses;
       } else {
         new_clause = new OpenACCGangClause();
         current_clauses->push_back(new_clause);
@@ -267,7 +266,7 @@ OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
   };
 
   va_end(args);
-  if (new_clause != NULL && new_clause->getClausePosition() == -1) {
+  if (new_clause != nullptr && new_clause->getClausePosition() == -1) {
     this->getClausesInOriginalOrder()->push_back(new_clause);
     new_clause->setClausePosition(this->getClausesInOriginalOrder()->size() -
                                   1);
@@ -305,20 +304,10 @@ void OpenACCAsyncClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCAsyncClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_async);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCAsyncClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_async] = current_clauses;
-  } else {
-    new_clause = new OpenACCAsyncClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCAsyncClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
@@ -352,20 +341,10 @@ void OpenACCBindClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCBindClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_bind);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCBindClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_bind] = current_clauses;
-  } else {
-    new_clause = new OpenACCBindClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCBindClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
@@ -443,8 +422,7 @@ void OpenACCAttachClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCAttachClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCAttachClause *>(current_clauses->front());
+  auto *existing = static_cast<OpenACCAttachClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -452,14 +430,11 @@ void OpenACCAttachClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCAttachClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_attach);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCAttachClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_attach] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -479,8 +454,7 @@ void OpenACCDeleteClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCDeleteClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCDeleteClause *>(current_clauses->front());
+  auto *existing = static_cast<OpenACCDeleteClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -488,14 +462,11 @@ void OpenACCDeleteClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCDeleteClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_delete);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCDeleteClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_delete] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -515,8 +486,7 @@ void OpenACCDetachClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCDetachClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCDetachClause *>(current_clauses->front());
+  auto *existing = static_cast<OpenACCDetachClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -524,14 +494,11 @@ void OpenACCDetachClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCDetachClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_detach);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCDetachClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_detach] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -548,14 +515,11 @@ void OpenACCCopyClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCCopyClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_copy);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCCopyClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_copy] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -567,21 +531,10 @@ OpenACCClause *OpenACCCopyClause::addClause(OpenACCDirective *directive) {
 
 OpenACCClause *OpenACCCopyinClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_copyin);
-  OpenACCClause *new_clause = NULL;
-
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCCopyinClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_copyin] = current_clauses;
-  } else {
-    new_clause = new OpenACCCopyinClause();
-    current_clauses->push_back(new_clause);
-  };
+  OpenACCClause *new_clause = new OpenACCCopyinClause();
+  current_clauses->push_back(new_clause);
 
   return new_clause;
 };
@@ -610,21 +563,10 @@ void OpenACCCopyinClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCCopyoutClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_copyout);
-  OpenACCClause *new_clause = NULL;
-
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCCopyoutClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_copyout] = current_clauses;
-  } else {
-    new_clause = new OpenACCCopyoutClause();
-    current_clauses->push_back(new_clause);
-  };
+  OpenACCClause *new_clause = new OpenACCCopyoutClause();
+  current_clauses->push_back(new_clause);
 
   return new_clause;
 };
@@ -653,21 +595,10 @@ void OpenACCCopyoutClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCCreateClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_create);
-  OpenACCClause *new_clause = NULL;
-
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCCreateClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_create] = current_clauses;
-  } else {
-    new_clause = new OpenACCCreateClause();
-    current_clauses->push_back(new_clause);
-  };
+  OpenACCClause *new_clause = new OpenACCCreateClause();
+  current_clauses->push_back(new_clause);
 
   return new_clause;
 };
@@ -731,14 +662,11 @@ void OpenACCIndirectClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCNoCreateClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_no_create);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCNoCreateClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_no_create] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -749,14 +677,11 @@ OpenACCClause *OpenACCNoCreateClause::addClause(OpenACCDirective *directive) {
 }
 
 OpenACCClause *OpenACCPresentClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_present);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCPresentClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_present] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -767,14 +692,11 @@ OpenACCClause *OpenACCPresentClause::addClause(OpenACCDirective *directive) {
 }
 
 OpenACCClause *OpenACCLinkClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_link);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCLinkClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_link] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -786,14 +708,11 @@ OpenACCClause *OpenACCLinkClause::addClause(OpenACCDirective *directive) {
 
 OpenACCClause *
 OpenACCDeviceResidentClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_device_resident);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCDeviceResidentClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_device_resident] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -813,8 +732,8 @@ void OpenACCFirstprivateClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCFirstprivateClause *>(current_clause);
-  auto *existing = static_cast<OpenACCFirstprivateClause *>(
-      current_clauses->front());
+  auto *existing =
+      static_cast<OpenACCFirstprivateClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -823,14 +742,11 @@ void OpenACCFirstprivateClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *
 OpenACCFirstprivateClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_firstprivate);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCFirstprivateClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_firstprivate] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -850,8 +766,7 @@ void OpenACCHostClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCHostClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCHostClause *>(current_clauses->front());
+  auto *existing = static_cast<OpenACCHostClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -859,14 +774,11 @@ void OpenACCHostClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCHostClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_host);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCHostClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_host] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -895,14 +807,11 @@ void OpenACCPrivateClause::mergeClause(OpenACCDirective *directive,
 }
 
 OpenACCClause *OpenACCPrivateClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_private);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCPrivateClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_private] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -913,27 +822,18 @@ OpenACCClause *OpenACCPrivateClause::addClause(OpenACCDirective *directive) {
 }
 
 OpenACCClause *OpenACCSelfClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_self);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
-    current_clauses = new std::vector<OpenACCClause *>();
-    (*all_clauses)[ACCC_self] = current_clauses;
-  }
-  new_clause = new OpenACCSelfClause();
+  OpenACCClause *new_clause = new OpenACCSelfClause();
   current_clauses->push_back(new_clause);
   return new_clause;
 }
 
 OpenACCClause *OpenACCDeviceptrClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_deviceptr);
   OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCDeviceptrClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_deviceptr] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -944,18 +844,9 @@ OpenACCClause *OpenACCDeviceptrClause::addClause(OpenACCDirective *directive) {
 }
 
 OpenACCClause *OpenACCUseDeviceClause::addClause(OpenACCDirective *directive) {
-  auto *all_clauses = directive->getAllClauses();
   auto *current_clauses = directive->getClauses(ACCC_use_device);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCUseDeviceClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_use_device] = current_clauses;
-  } else {
-    new_clause = new OpenACCUseDeviceClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCUseDeviceClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
@@ -1005,8 +896,7 @@ void OpenACCLinkClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCLinkClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCLinkClause *>(current_clauses->front());
+  auto *existing = static_cast<OpenACCLinkClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -1023,8 +913,8 @@ void OpenACCDeviceResidentClause::mergeClause(OpenACCDirective *directive,
     return;
   }
   auto *incoming = static_cast<OpenACCDeviceResidentClause *>(current_clause);
-  auto *existing = static_cast<OpenACCDeviceResidentClause *>(
-      current_clauses->front());
+  auto *existing =
+      static_cast<OpenACCDeviceResidentClause *>(current_clauses->front());
   mergeVarList(existing, incoming);
   current_clauses->pop_back();
   directive->getClausesInOriginalOrder()->pop_back();
@@ -1069,17 +959,13 @@ void OpenACCUseDeviceClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCDefaultClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_default);
-  OpenACCClause *new_clause = NULL;
+  OpenACCClause *new_clause = nullptr;
 
-  if (current_clauses->size() == 0) {
+  if (current_clauses->empty()) {
     new_clause = new OpenACCDefaultClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_default] = current_clauses;
   } else { /* could be an error since default clause may only appear once */
     std::cerr << "Cannot have two default clause for the directive "
               << directive->getKind() << ", ignored\n";
@@ -1115,23 +1001,13 @@ void OpenACCDefaultAsyncClause::mergeClause(OpenACCDirective *directive,
   }
 };
 
-OpenACCClause *OpenACCDefaultAsyncClause::addClause(
-    OpenACCDirective *directive) {
+OpenACCClause *
+OpenACCDefaultAsyncClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_default_async);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCDefaultAsyncClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_default_async] = current_clauses;
-  } else {
-    new_clause = new OpenACCDefaultAsyncClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCDefaultAsyncClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
@@ -1170,16 +1046,12 @@ void OpenACCDeviceClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCDeviceClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_device);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
+  OpenACCClause *new_clause = nullptr;
+  if (current_clauses->empty()) {
     new_clause = new OpenACCDeviceClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_device] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -1216,16 +1088,12 @@ void OpenACCIfClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCIfClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_if);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
+  OpenACCClause *new_clause = nullptr;
+  if (current_clauses->empty()) {
     new_clause = new OpenACCIfClause();
-    current_clauses = new std::vector<OpenACCClause *>();
     current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_if] = current_clauses;
   } else if (OpenACCDirective::getClauseMerging()) {
     new_clause = current_clauses->at(0);
   } else {
@@ -1260,39 +1128,19 @@ void OpenACCDeviceNumClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCDeviceNumClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_device_num);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCDeviceNumClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_device_num] = current_clauses;
-  } else {
-    new_clause = new OpenACCDeviceNumClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCDeviceNumClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
 OpenACCClause *OpenACCTileClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_tile);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCTileClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_tile] = current_clauses;
-  } else {
-    new_clause = new OpenACCTileClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCTileClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
@@ -1324,38 +1172,22 @@ void OpenACCTileClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCCollapseClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_collapse);
-  OpenACCClause *new_clause = NULL;
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCCollapseClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_collapse] = current_clauses;
-  } else {
-    new_clause = new OpenACCCollapseClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCCollapseClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
 OpenACCClause *OpenACCGangClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_gang);
   OpenACCGangClause *new_clause = nullptr;
-  if (directive->getKind() == ACCD_routine && current_clauses->size() != 0) {
+  if (directive->getKind() == ACCD_routine && !current_clauses->empty()) {
     new_clause = static_cast<OpenACCGangClause *>(current_clauses->at(0));
   } else {
     new_clause = new OpenACCGangClause();
-    if (current_clauses->size() == 0) {
-      current_clauses = new std::vector<OpenACCClause *>();
-      (*all_clauses)[ACCC_gang] = current_clauses;
-    }
     current_clauses->push_back(new_clause);
   }
   return new_clause;
@@ -1452,21 +1284,10 @@ void OpenACCNumGangsClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCNumGangsClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_num_gangs);
-  OpenACCClause *new_clause = NULL;
-
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCNumGangsClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_num_gangs] = current_clauses;
-  } else {
-    new_clause = new OpenACCNumGangsClause();
-    current_clauses->push_back(new_clause);
-  }
+  OpenACCClause *new_clause = new OpenACCNumGangsClause();
+  current_clauses->push_back(new_clause);
   return new_clause;
 }
 
@@ -1499,19 +1320,13 @@ void OpenACCNumWorkersClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCNumWorkersClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_num_workers);
-  OpenACCClause *new_clause = NULL;
-  if (directive->getKind() == ACCD_routine && current_clauses->size() != 0) {
+  OpenACCClause *new_clause = nullptr;
+  if (directive->getKind() == ACCD_routine && !current_clauses->empty()) {
     new_clause = current_clauses->at(0);
   } else {
     new_clause = new OpenACCNumWorkersClause();
-    if (current_clauses->size() == 0) {
-      current_clauses = new std::vector<OpenACCClause *>();
-      (*all_clauses)[ACCC_num_workers] = current_clauses;
-    }
     current_clauses->push_back(new_clause);
   }
 
@@ -1520,21 +1335,10 @@ OpenACCClause *OpenACCNumWorkersClause::addClause(OpenACCDirective *directive) {
 
 OpenACCClause *OpenACCReductionClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_reduction);
-  OpenACCClause *new_clause = NULL;
-
-  if (current_clauses->size() == 0) {
-    new_clause = new OpenACCReductionClause();
-    current_clauses = new std::vector<OpenACCClause *>();
-    current_clauses->push_back(new_clause);
-    (*all_clauses)[ACCC_reduction] = current_clauses;
-  } else {
-    new_clause = new OpenACCReductionClause();
-    current_clauses->push_back(new_clause);
-  };
+  OpenACCClause *new_clause = new OpenACCReductionClause();
+  current_clauses->push_back(new_clause);
 
   return new_clause;
 };
@@ -1616,30 +1420,19 @@ void OpenACCSelfClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCVectorClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_vector);
-  OpenACCClause *new_clause = NULL;
+  OpenACCClause *new_clause = nullptr;
   if (directive->getKind() == ACCD_routine) {
-    if (current_clauses->size() == 0) {
+    if (current_clauses->empty()) {
       new_clause = new OpenACCVectorClause();
-      current_clauses = new std::vector<OpenACCClause *>();
       current_clauses->push_back(new_clause);
-      (*all_clauses)[ACCC_vector] = current_clauses;
     } else {
       new_clause = current_clauses->at(0);
     }
   } else {
-    if (current_clauses->size() == 0) {
-      new_clause = new OpenACCVectorClause();
-      current_clauses = new std::vector<OpenACCClause *>();
-      current_clauses->push_back(new_clause);
-      (*all_clauses)[ACCC_vector] = current_clauses;
-    } else {
-      new_clause = new OpenACCVectorClause();
-      current_clauses->push_back(new_clause);
-    };
+    new_clause = new OpenACCVectorClause();
+    current_clauses->push_back(new_clause);
   }
 
   return new_clause;
@@ -1671,33 +1464,22 @@ void OpenACCVectorClause::mergeClause(OpenACCDirective *directive,
   }
 };
 
-OpenACCClause *OpenACCVectorLengthClause::addClause(
-    OpenACCDirective *directive) {
+OpenACCClause *
+OpenACCVectorLengthClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_vector_length);
-  OpenACCClause *new_clause = NULL;
+  OpenACCClause *new_clause = nullptr;
   if (directive->getKind() == ACCD_routine) {
-    if (current_clauses->size() == 0) {
+    if (current_clauses->empty()) {
       new_clause = new OpenACCVectorLengthClause();
-      current_clauses = new std::vector<OpenACCClause *>();
       current_clauses->push_back(new_clause);
-      (*all_clauses)[ACCC_vector_length] = current_clauses;
     } else {
       new_clause = current_clauses->at(0);
     }
   } else {
-    if (current_clauses->size() == 0) {
-      new_clause = new OpenACCVectorLengthClause();
-      current_clauses = new std::vector<OpenACCClause *>();
-      current_clauses->push_back(new_clause);
-      (*all_clauses)[ACCC_vector_length] = current_clauses;
-    } else {
-      new_clause = new OpenACCVectorLengthClause();
-      current_clauses->push_back(new_clause);
-    };
+    new_clause = new OpenACCVectorLengthClause();
+    current_clauses->push_back(new_clause);
   }
 
   return new_clause;
@@ -1732,17 +1514,9 @@ void OpenACCVectorLengthClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCWaitClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_wait);
-  OpenACCClause *new_clause = NULL;
-
-  if (current_clauses->size() == 0) {
-    current_clauses = new std::vector<OpenACCClause *>();
-    (*all_clauses)[ACCC_wait] = current_clauses;
-  };
-  new_clause = new OpenACCWaitClause();
+  OpenACCClause *new_clause = new OpenACCWaitClause();
   current_clauses->push_back(new_clause);
 
   return new_clause;
@@ -1800,30 +1574,19 @@ void OpenACCWaitClause::mergeClause(OpenACCDirective *directive,
 
 OpenACCClause *OpenACCWorkerClause::addClause(OpenACCDirective *directive) {
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *all_clauses =
-      directive->getAllClauses();
   std::vector<OpenACCClause *> *current_clauses =
       directive->getClauses(ACCC_worker);
-  OpenACCClause *new_clause = NULL;
+  OpenACCClause *new_clause = nullptr;
   if (directive->getKind() == ACCD_routine) {
-    if (current_clauses->size() == 0) {
+    if (current_clauses->empty()) {
       new_clause = new OpenACCWorkerClause();
-      current_clauses = new std::vector<OpenACCClause *>();
       current_clauses->push_back(new_clause);
-      (*all_clauses)[ACCC_worker] = current_clauses;
     } else {
       new_clause = current_clauses->at(0);
     }
   } else {
-    if (current_clauses->size() == 0) {
-      new_clause = new OpenACCWorkerClause();
-      current_clauses = new std::vector<OpenACCClause *>();
-      current_clauses->push_back(new_clause);
-      (*all_clauses)[ACCC_worker] = current_clauses;
-    } else {
-      new_clause = new OpenACCWorkerClause();
-      current_clauses->push_back(new_clause);
-    };
+    new_clause = new OpenACCWorkerClause();
+    current_clauses->push_back(new_clause);
   }
 
   return new_clause;
@@ -1922,8 +1685,7 @@ void OpenACCDeviceTypeClause::mergeClause(OpenACCDirective *directive,
     }
   }
   auto *current_clauses = directive->getClauses(ACCC_device_type);
-  if (!current_clauses->empty() &&
-      current_clauses->back() == merge_clause &&
+  if (!current_clauses->empty() && current_clauses->back() == merge_clause &&
       current_clauses->size() > 1) {
     current_clauses->pop_back();
   }

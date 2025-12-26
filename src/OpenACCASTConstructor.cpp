@@ -1,14 +1,14 @@
 #include "OpenACCASTConstructor.h"
 #include "acclexer.h"
 #include "accparser.h"
-#include <antlr4-runtime.h>
 #include <algorithm>
+#include <antlr4-runtime.h>
 #include <memory>
 
-OpenACCDirective *current_directive = NULL;
-OpenACCClause *current_clause = NULL;
-OpenACCDirective *current_parent_directive = NULL;
-OpenACCClause *current_parent_clause = NULL;
+OpenACCDirective *current_directive = nullptr;
+OpenACCClause *current_clause = nullptr;
+OpenACCDirective *current_parent_directive = nullptr;
+OpenACCClause *current_parent_clause = nullptr;
 
 static void setOpenACCLang(OpenACCDirective *directive, bool useFortran) {
   if (useFortran == true) {
@@ -16,6 +16,13 @@ static void setOpenACCLang(OpenACCDirective *directive, bool useFortran) {
   } else {
     directive->setBaseLang(ACC_Lang_C);
   }
+}
+
+static std::string stripStringLiteral(const std::string &text) {
+  if (text.size() < 2) {
+    return text;
+  }
+  return text.substr(1, text.size() - 2);
 }
 
 void OpenACCIRConstructor::enterC_prefix(accparser::C_prefixContext *ctx) {
@@ -73,8 +80,8 @@ void OpenACCIRConstructor::exitFortran_paired_directive(
       ->setPairedDirective(current_directive);
   current_directive = current_parent_directive;
   current_clause = current_parent_clause;
-  current_parent_directive = NULL;
-  current_parent_clause = NULL;
+  current_parent_directive = nullptr;
+  current_parent_clause = nullptr;
   setOpenACCLang(current_directive, isFortran());
 }
 
@@ -224,6 +231,9 @@ void OpenACCIRConstructor::exitName_or_string(
   if (current_clause && current_clause->getKind() == ACCC_bind) {
     std::string expression = trimEnclosingWhiteSpace(ctx->getText());
     bool is_string = ctx->STRING_LITERAL() != nullptr;
+    if (is_string) {
+      expression = stripStringLiteral(expression);
+    }
     static_cast<OpenACCBindClause *>(current_clause)
         ->setBinding(expression, is_string);
   }
@@ -525,6 +535,22 @@ void OpenACCIRConstructor::enterGang_no_list_clause(
   current_clause = current_directive->addOpenACCClause(ACCC_gang);
 }
 
+void OpenACCIRConstructor::exitGang_no_list_clause(
+    accparser::Gang_no_list_clauseContext *ctx) {
+  if (!current_clause || current_clause->getKind() != ACCC_gang) {
+    return;
+  }
+  if (ctx->int_expr()) {
+    std::string value_text =
+        trimEnclosingWhiteSpace(ctx->int_expr()->getText());
+    static_cast<OpenACCGangClause *>(current_clause)
+        ->addArg(ACCC_GANG_ARG_dim,
+                 OpenACCExpressionItem{value_text, ACCC_CLAUSE_SEP_comma});
+  }
+  static_cast<OpenACCGangClause *>(current_clause)
+      ->mergeClause(current_directive, current_clause);
+}
+
 void OpenACCIRConstructor::enterHost_clause(
     accparser::Host_clauseContext *ctx) {
   current_clause = current_directive->addOpenACCClause(ACCC_host);
@@ -701,8 +727,7 @@ void OpenACCIRConstructor::enterTile_clause(
   current_clause = current_directive->addOpenACCClause(ACCC_tile);
 }
 
-void OpenACCIRConstructor::exitTile_clause(
-    accparser::Tile_clauseContext *ctx) {
+void OpenACCIRConstructor::exitTile_clause(accparser::Tile_clauseContext *ctx) {
   ((OpenACCTileClause *)current_clause)
       ->mergeClause(current_directive, current_clause);
 }
@@ -738,13 +763,14 @@ void OpenACCIRConstructor::exitVector_clause(
     accparser::Vector_clauseContext *ctx) {
   // If the vector clause had a length expression, capture it
   if (ctx->vector_clause_args() && ctx->vector_clause_args()->int_expr()) {
-    std::string expr =
-        trimEnclosingWhiteSpace(ctx->vector_clause_args()->int_expr()->getText());
+    std::string expr = trimEnclosingWhiteSpace(
+        ctx->vector_clause_args()->int_expr()->getText());
     ((OpenACCVectorClause *)current_clause)
         ->setLengthExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
     if (((OpenACCVectorClause *)current_clause)->getModifier() ==
         ACCC_VECTOR_unspecified) {
-      ((OpenACCVectorClause *)current_clause)->setModifier(ACCC_VECTOR_expr_only);
+      ((OpenACCVectorClause *)current_clause)
+          ->setModifier(ACCC_VECTOR_expr_only);
     }
   }
   ((OpenACCVectorClause *)current_clause)
@@ -759,8 +785,7 @@ void OpenACCIRConstructor::enterVector_length_clause(
 void OpenACCIRConstructor::exitVector_length_clause(
     accparser::Vector_length_clauseContext *ctx) {
   if (ctx->int_expr()) {
-    std::string expr =
-        trimEnclosingWhiteSpace(ctx->int_expr()->getText());
+    std::string expr = trimEnclosingWhiteSpace(ctx->int_expr()->getText());
     ((OpenACCVectorLengthClause *)current_clause)
         ->setLengthExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
   }
@@ -841,13 +866,14 @@ void OpenACCIRConstructor::exitWorker_clause_modifier(
 void OpenACCIRConstructor::exitWorker_clause(
     accparser::Worker_clauseContext *ctx) {
   if (ctx->worker_clause_args() && ctx->worker_clause_args()->int_expr()) {
-    std::string expr =
-        trimEnclosingWhiteSpace(ctx->worker_clause_args()->int_expr()->getText());
+    std::string expr = trimEnclosingWhiteSpace(
+        ctx->worker_clause_args()->int_expr()->getText());
     ((OpenACCWorkerClause *)current_clause)
         ->setNumExpr(OpenACCExpressionItem{expr, ACCC_CLAUSE_SEP_comma});
     if (((OpenACCWorkerClause *)current_clause)->getModifier() ==
         ACCC_WORKER_unspecified) {
-      ((OpenACCWorkerClause *)current_clause)->setModifier(ACCC_WORKER_expr_only);
+      ((OpenACCWorkerClause *)current_clause)
+          ->setModifier(ACCC_WORKER_expr_only);
     }
   }
   ((OpenACCWorkerClause *)current_clause)
@@ -1000,7 +1026,7 @@ OpenACCDirective *parseOpenACC(std::string source) {
   parser.setBuildParseTree(true);
   parser.setErrorHandler(std::make_shared<antlr4::BailErrorStrategy>());
 
-  current_directive = NULL;
+  current_directive = nullptr;
   antlr4::tree::ParseTree *tree = parser.acc();
 
   antlr4::tree::ParseTreeWalker walker;
@@ -1021,20 +1047,8 @@ void OpenACCIRConstructor::enterIndirect_clause(
     std::string text =
         trimEnclosingWhiteSpace(ctx->name_or_string()->getText());
     bool is_str = ctx->name_or_string()->STRING_LITERAL() != nullptr;
-    // Fallback: IF lexer returns EXPR for a quoted string (e.g. in expr_clause mode),
-    // detect it manually to preserve semantics.
-    if (!is_str && text.length() >= 2) {
-      if ((text.front() == '"' && text.back() == '"') ||
-          (text.front() == '\'' && text.back() == '\'')) {
-        is_str = true;
-      }
-    }
-    
-    if (is_str && text.length() >= 2) {
-      if ((text.front() == '"' && text.back() == '"') ||
-          (text.front() == '\'' && text.back() == '\'')) {
-        text = text.substr(1, text.length() - 2);
-      }
+    if (is_str) {
+      text = stripStringLiteral(text);
     }
     indirect->setValue(text, is_str);
   }

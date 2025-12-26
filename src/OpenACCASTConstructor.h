@@ -143,6 +143,8 @@ public:
   enterNohost_clause(accparser::Nohost_clauseContext * /*ctx*/) override;
   virtual void enterGang_no_list_clause(
       accparser::Gang_no_list_clauseContext * /*ctx*/) override;
+  virtual void exitGang_no_list_clause(
+      accparser::Gang_no_list_clauseContext * /*ctx*/) override;
   virtual void
   enterHost_clause(accparser::Host_clauseContext * /*ctx*/) override;
   virtual void enterIf_clause(accparser::If_clauseContext * /*ctx*/) override;
@@ -185,8 +187,8 @@ public:
   exitSelf_clause(accparser::Self_clauseContext * /*ctx*/) override;
   virtual void
   enterSelf_list_clause(accparser::Self_list_clauseContext * /*ctx*/) override;
-  virtual void exitSelf_list_clause(
-      accparser::Self_list_clauseContext * /*ctx*/) override;
+  virtual void
+  exitSelf_list_clause(accparser::Self_list_clauseContext * /*ctx*/) override;
   virtual void enterSeq_clause(accparser::Seq_clauseContext * /*ctx*/) override;
   virtual void
   enterTile_clause(accparser::Tile_clauseContext * /*ctx*/) override;
@@ -196,8 +198,8 @@ public:
   enterUpdate_clause(accparser::Update_clauseContext * /*ctx*/) override;
   virtual void enterUse_device_clause(
       accparser::Use_device_clauseContext * /*ctx*/) override;
-  virtual void exitUse_device_clause(
-      accparser::Use_device_clauseContext * /*ctx*/) override;
+  virtual void
+  exitUse_device_clause(accparser::Use_device_clauseContext * /*ctx*/) override;
   virtual void
   enterVector_clause(accparser::Vector_clauseContext * /*ctx*/) override;
   virtual void exitVector_clause_modifier(

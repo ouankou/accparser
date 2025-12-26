@@ -13,6 +13,7 @@
 #pragma acc data create(zero: 12, 23, 34, zero)
 #pragma acc data create(zero: zero::12, 23, 34)
 #pragma acc data default(present)
+#pragma acc data device_type(x, y, z)
 #pragma acc data deviceptr(a, b, c)
 #pragma acc data if(5)
 #pragma acc data if(x==3)

@@ -1,4 +1,5 @@
 !$acc routine gang
+!$acc routine gang(dim:2)
 !$acc routine worker
 !$acc routine vector
 !$acc routine seq

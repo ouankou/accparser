@@ -22,13 +22,6 @@ options { tokenVocab = acclexer; }
 
 @ parser :: context
 {/* parser context section */}
-// Appears in the private part of the parser in the h file.
-
-// The function bodies could also appear in the definitions section, but I want to maximize
-
-// Java compatibility, so we can also create a Java parser from this grammar.
-
-// Still, some tweaking is necessary after the Java file generation (e.g. bool -> boolean).
 
 @ parser :: members
 {
@@ -168,6 +161,7 @@ data_clauses
    | copyout_clause
    | create_clause
    | default_clause
+   | device_type_clause
    | deviceptr_clause
    | if_clause
    | no_create_clause
@@ -768,6 +762,7 @@ gang_arg
 
 gang_no_list_clause
    : GANG
+   | GANG LEFT_PAREN DIM COLON int_expr RIGHT_PAREN
    ;
 
 host_clause
@@ -904,7 +899,7 @@ vector_length_clause
 
 wait_clause
    : WAIT
-   | WAIT LEFT_PAREN int_expr_list RIGHT_PAREN
+   | WAIT LEFT_PAREN wait_argument RIGHT_PAREN
    ;
 
 wait_argument_clause

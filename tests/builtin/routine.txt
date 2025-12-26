@@ -1,6 +1,8 @@
 
 #pragma acc routine gang
 
+#pragma acc routine gang ( dim: 2 )
+
 #pragma acc routine worker
 
 #pragma acc routine vector

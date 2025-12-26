@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <unordered_set>
 #include <vector>
 
 #include "OpenACCKinds.h"
@@ -36,8 +37,8 @@ class ACC_SourceLocation {
 
 public:
   ACC_SourceLocation(int _line = 0, int _col = 0,
-                     ACC_SourceLocation *_parent_construct = NULL)
-      : line(_line), column(_col), parent_construct(_parent_construct){};
+                     ACC_SourceLocation *_parent_construct = nullptr)
+      : line(_line), column(_col), parent_construct(_parent_construct) {};
   void setParentConstruct(ACC_SourceLocation *_parent_construct) {
     parent_construct = _parent_construct;
   };
@@ -63,7 +64,7 @@ protected:
 
 public:
   OpenACCClause(OpenACCClauseKind k, int _line = 0, int _col = 0)
-      : ACC_SourceLocation(_line, _col), kind(k){};
+      : ACC_SourceLocation(_line, _col), kind(k) {};
 
   OpenACCClauseKind getKind() { return kind; };
   int getClausePosition() { return clause_position; };
@@ -183,8 +184,7 @@ protected:
    * the first one. Then the second one will be eliminated and not stored
    * anywhere.
    */
-  std::vector<OpenACCClause *> *clauses_in_original_order =
-      new std::vector<OpenACCClause *>();
+  std::vector<OpenACCClause *> clauses_in_original_order;
 
   /* the map to store clauses of the directive, for each clause, we store a
    * vector of OpenACCClause objects since there could be multiple clause
@@ -198,7 +198,7 @@ protected:
    * should only have one OpenACCClause object for each instance of kind and
    * full parameters
    */
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> clauses;
+  std::map<OpenACCClauseKind, std::vector<OpenACCClause *>> clauses;
   /**
    *
    * This method searches the clauses map to see whether one or more
@@ -245,7 +245,7 @@ public:
   OpenACCDirective(OpenACCDirectiveKind k,
                    OpenACCBaseLang _lang = ACC_Lang_unknown, int _line = 0,
                    int _col = 0)
-      : ACC_SourceLocation(_line, _col), kind(k), lang(_lang){};
+      : ACC_SourceLocation(_line, _col), kind(k), lang(_lang) {};
 
   OpenACCDirectiveKind getKind() { return kind; };
 
@@ -253,22 +253,22 @@ public:
   static void setClauseMerging(bool enable) { enable_clause_merging = enable; }
   static bool getClauseMerging() { return enable_clause_merging; }
 
-  std::map<OpenACCClauseKind, std::vector<OpenACCClause *> *> *getAllClauses() {
+  std::map<OpenACCClauseKind, std::vector<OpenACCClause *>> *getAllClauses() {
     return &clauses;
   };
 
   std::vector<OpenACCClause *> *getClauses(OpenACCClauseKind kind) {
-    return clauses[kind];
+    return &clauses[kind];
   };
   std::vector<OpenACCClause *> *getClausesInOriginalOrder() {
-    return clauses_in_original_order;
+    return &clauses_in_original_order;
   };
 
   virtual std::string toString();
 
   /* Ensure safe polymorphic destruction when callers delete a derived
    * directive via an OpenACCDirective* pointer (tests do this). */
-  virtual ~OpenACCDirective() = default;
+  virtual ~OpenACCDirective();
 
   std::string generatePragmaString(std::string _prefix = "#pragma acc ",
                                    std::string _beginning_symbol = "",
@@ -290,7 +290,7 @@ protected:
   std::vector<OpenACCExpressionItem> vars;
 
 public:
-  OpenACCCacheDirective() : OpenACCDirective(ACCD_cache){};
+  OpenACCCacheDirective() : OpenACCDirective(ACCD_cache) {};
   OpenACCCacheDirectiveModifier getModifier() { return modifier; };
   void setModifier(OpenACCCacheDirectiveModifier _modifier) {
     modifier = _modifier;
@@ -327,7 +327,7 @@ protected:
   OpenACCDirective *paired_directive;
 
 public:
-  OpenACCEndDirective() : OpenACCDirective(ACCD_end){};
+  OpenACCEndDirective() : OpenACCDirective(ACCD_end) {};
   void setPairedDirective(OpenACCDirective *_paired_directive) {
     paired_directive = _paired_directive;
   };
@@ -340,7 +340,7 @@ protected:
   OpenACCIdentifier name;
 
 public:
-  OpenACCRoutineDirective() : OpenACCDirective(ACCD_routine){};
+  OpenACCRoutineDirective() : OpenACCDirective(ACCD_routine) {};
   void setName(std::string _name, bool is_string_literal = false) {
     name = {_name, is_string_literal};
   };
@@ -356,7 +356,7 @@ protected:
   bool queues = false;
 
 public:
-  OpenACCWaitDirective() : OpenACCDirective(ACCD_wait){};
+  OpenACCWaitDirective() : OpenACCDirective(ACCD_wait) {};
   void setDevnum(const OpenACCExpressionItem &_devnum) { devnum = _devnum; };
   void setDevnum(const std::string &_devnum,
                  OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
@@ -387,7 +387,7 @@ protected:
   OpenACCExpressionItem async_expr;
 
 public:
-  OpenACCAsyncClause() : OpenACCClause(ACCC_async){};
+  OpenACCAsyncClause() : OpenACCClause(ACCC_async) {};
 
   void setModifier(OpenACCAsyncModifier m) { modifier = m; }
   OpenACCAsyncModifier getModifier() const { return modifier; }
@@ -410,7 +410,7 @@ protected:
   OpenACCIdentifier binding;
 
 public:
-  OpenACCBindClause() : OpenACCClause(ACCC_bind){};
+  OpenACCBindClause() : OpenACCClause(ACCC_bind) {};
 
   void setBinding(const std::string &_binding, bool _is_string_literal) {
     binding = {_binding, _is_string_literal};
@@ -432,16 +432,16 @@ protected:
   bool force = false;
 
 public:
-  OpenACCCollapseClause() : OpenACCClause(ACCC_collapse){};
+  OpenACCCollapseClause() : OpenACCClause(ACCC_collapse) {};
 
-  void addCountExpr(const OpenACCExpressionItem &expr) { counts.push_back(expr); }
+  void addCountExpr(const OpenACCExpressionItem &expr) {
+    counts.push_back(expr);
+  }
   void addCountExpr(const std::string &expr,
                     OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
     addCountExpr(OpenACCExpressionItem{expr, sep});
   }
-  const std::vector<OpenACCExpressionItem> &getCounts() const {
-    return counts;
-  }
+  const std::vector<OpenACCExpressionItem> &getCounts() const { return counts; }
   void setForce(bool f) { force = f; }
   bool isForce() const { return force; }
 
@@ -527,8 +527,7 @@ public:
 // Device Resident Clause
 class OpenACCDeviceResidentClause : public OpenACCVarListClause {
 public:
-  OpenACCDeviceResidentClause()
-      : OpenACCVarListClause(ACCC_device_resident) {}
+  OpenACCDeviceResidentClause() : OpenACCVarListClause(ACCC_device_resident) {}
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -562,7 +561,7 @@ protected:
   OpenACCDefaultClauseKind default_kind = ACCC_DEFAULT_unspecified;
 
 public:
-  OpenACCDefaultClause() : OpenACCClause(ACCC_default){};
+  OpenACCDefaultClause() : OpenACCClause(ACCC_default) {};
 
   OpenACCDefaultClauseKind getKind() { return default_kind; };
 
@@ -581,7 +580,7 @@ protected:
   OpenACCExpressionItem async_expr;
 
 public:
-  OpenACCDefaultAsyncClause() : OpenACCClause(ACCC_default_async){};
+  OpenACCDefaultAsyncClause() : OpenACCClause(ACCC_default_async) {};
 
   void setAsyncExpr(const OpenACCExpressionItem &expr) { async_expr = expr; }
   void setAsyncExpr(const std::string &expr,
@@ -723,7 +722,7 @@ protected:
   std::vector<GangArg> args;
 
 public:
-  OpenACCGangClause() : OpenACCClause(ACCC_gang){};
+  OpenACCGangClause() : OpenACCClause(ACCC_gang) {};
 
   void addArg(OpenACCGangArgKind kind, const OpenACCExpressionItem &value) {
     args.push_back({kind, value});
@@ -745,7 +744,7 @@ protected:
   std::vector<OpenACCExpressionItem> nums;
 
 public:
-  OpenACCNumGangsClause() : OpenACCClause(ACCC_num_gangs){};
+  OpenACCNumGangsClause() : OpenACCClause(ACCC_num_gangs) {};
 
   void addNum(const OpenACCExpressionItem &expr) { nums.push_back(expr); }
   void addNum(const std::string &expr,
@@ -766,7 +765,7 @@ protected:
   OpenACCExpressionItem num_expr;
 
 public:
-  OpenACCNumWorkersClause() : OpenACCClause(ACCC_num_workers){};
+  OpenACCNumWorkersClause() : OpenACCClause(ACCC_num_workers) {};
 
   void setNumExpr(const OpenACCExpressionItem &expr) { num_expr = expr; }
   void setNumExpr(const std::string &expr,
@@ -832,7 +831,7 @@ protected:
       ACCC_REDUCTION_unspecified;
 
 public:
-  OpenACCReductionClause() : OpenACCVarListClause(ACCC_reduction){};
+  OpenACCReductionClause() : OpenACCVarListClause(ACCC_reduction) {};
 
   OpenACCReductionClauseOperator getOperator() { return reduction_operator; };
 
@@ -873,7 +872,7 @@ protected:
   OpenACCExpressionItem length_expr;
 
 public:
-  OpenACCVectorClause() : OpenACCClause(ACCC_vector){};
+  OpenACCVectorClause() : OpenACCClause(ACCC_vector) {};
 
   OpenACCVectorClauseModifier getModifier() const { return modifier; };
 
@@ -899,7 +898,7 @@ protected:
   OpenACCExpressionItem length_expr;
 
 public:
-  OpenACCVectorLengthClause() : OpenACCClause(ACCC_vector_length){};
+  OpenACCVectorLengthClause() : OpenACCClause(ACCC_vector_length) {};
 
   void setLengthExpr(const OpenACCExpressionItem &expr) { length_expr = expr; }
   void setLengthExpr(const std::string &expr,
@@ -922,7 +921,7 @@ protected:
   std::vector<OpenACCExpressionItem> async_ids;
 
 public:
-  OpenACCWaitClause() : OpenACCClause(ACCC_wait){};
+  OpenACCWaitClause() : OpenACCClause(ACCC_wait) {};
 
   void setDevnum(const OpenACCExpressionItem &_devnum) { devnum = _devnum; };
   void setDevnum(const std::string &_devnum,
@@ -932,12 +931,16 @@ public:
   const OpenACCExpressionItem &getDevnum() const { return devnum; };
   void setQueues(bool _queues) { queues = _queues; };
   bool getQueues() { return queues; };
-  void addAsyncId(const OpenACCExpressionItem &expr) { async_ids.push_back(expr); }
+  void addAsyncId(const OpenACCExpressionItem &expr) {
+    async_ids.push_back(expr);
+  }
   void addAsyncId(const std::string &expr,
                   OpenACCClauseSeparator sep = ACCC_CLAUSE_SEP_comma) {
     async_ids.push_back(OpenACCExpressionItem{expr, sep});
   }
-  const std::vector<OpenACCExpressionItem> &getAsyncIds() const { return async_ids; }
+  const std::vector<OpenACCExpressionItem> &getAsyncIds() const {
+    return async_ids;
+  }
 
   static OpenACCClause *addClause(OpenACCDirective *);
   std::string toString();
@@ -975,7 +978,7 @@ protected:
   OpenACCExpressionItem num_expr;
 
 public:
-  OpenACCWorkerClause() : OpenACCClause(ACCC_worker){};
+  OpenACCWorkerClause() : OpenACCClause(ACCC_worker) {};
 
   OpenACCWorkerClauseModifier getModifier() const { return modifier; };
 
