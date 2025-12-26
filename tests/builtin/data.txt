@@ -29,6 +29,8 @@
 
 #pragma acc data default(present)
 
+#pragma acc data device_type(x, y, z)
+
 #pragma acc data deviceptr(a, b, c)
 
 #pragma acc data if(5)
@@ -70,4 +72,3 @@
 #pragma acc data create( x, y, z) create( a, b, c)
 
 #pragma acc data copyin( readonly : x, y, z) copyout( zero : x, y, z) create( zero : x, y, z)
-

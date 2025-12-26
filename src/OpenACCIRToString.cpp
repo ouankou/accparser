@@ -97,8 +97,7 @@ std::string OpenACCDirective::toString() {
   case ACCD_routine:
     result += "routine ";
     if (!((OpenACCRoutineDirective *)this)->getName().text.empty()) {
-      result +=
-          "(" + ((OpenACCRoutineDirective *)this)->getName().text + ") ";
+      result += "(" + ((OpenACCRoutineDirective *)this)->getName().text + ") ";
     }
     break;
   case ACCD_serial:
@@ -128,11 +127,11 @@ std::string OpenACCClause::expressionToString() const {
 
   std::string result;
   const auto *expr = this->getExpressions();
-  if (expr != NULL && !expr->empty()) {
+  if (expr != nullptr && !expr->empty()) {
     for (size_t idx = 0; idx < expr->size(); ++idx) {
       if (idx > 0) {
-        result += ((*expr)[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", "
-                                                                    : " ";
+        result +=
+            ((*expr)[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
       }
       result += (*expr)[idx].text;
     }
@@ -147,7 +146,8 @@ std::string OpenACCClause::toString() {
 
   switch (this->getKind()) {
   case ACCC_async:
-    return static_cast<OpenACCAsyncClause *>(this)->OpenACCAsyncClause::toString();
+    return static_cast<OpenACCAsyncClause *>(this)
+        ->OpenACCAsyncClause::toString();
   case ACCC_attach:
     return static_cast<OpenACCAttachClause *>(this)
         ->OpenACCAttachClause::toString();
@@ -155,7 +155,8 @@ std::string OpenACCClause::toString() {
     result += "auto ";
     break;
   case ACCC_bind:
-    return static_cast<OpenACCBindClause *>(this)->OpenACCBindClause::toString();
+    return static_cast<OpenACCBindClause *>(this)
+        ->OpenACCBindClause::toString();
   case ACCC_capture:
     result += "capture ";
     break;
@@ -169,7 +170,8 @@ std::string OpenACCClause::toString() {
     return static_cast<OpenACCCollapseClause *>(this)
         ->OpenACCCollapseClause::toString();
   case ACCC_copy:
-    return static_cast<OpenACCCopyClause *>(this)->OpenACCCopyClause::toString();
+    return static_cast<OpenACCCopyClause *>(this)
+        ->OpenACCCopyClause::toString();
   case ACCC_copyin:
     return static_cast<OpenACCCopyinClause *>(this)
         ->OpenACCCopyinClause::toString();
@@ -183,7 +185,8 @@ std::string OpenACCClause::toString() {
     return static_cast<OpenACCDefaultAsyncClause *>(this)
         ->OpenACCDefaultAsyncClause::toString();
   case ACCC_device:
-    return static_cast<OpenACCDeviceClause *>(this)->OpenACCDeviceClause::toString();
+    return static_cast<OpenACCDeviceClause *>(this)
+        ->OpenACCDeviceClause::toString();
   case ACCC_device_num:
     return static_cast<OpenACCDeviceNumClause *>(this)
         ->OpenACCDeviceNumClause::toString();
@@ -203,9 +206,11 @@ std::string OpenACCClause::toString() {
     return static_cast<OpenACCFirstprivateClause *>(this)
         ->OpenACCFirstprivateClause::toString();
   case ACCC_gang:
-    return static_cast<OpenACCGangClause *>(this)->OpenACCGangClause::toString();
+    return static_cast<OpenACCGangClause *>(this)
+        ->OpenACCGangClause::toString();
   case ACCC_host:
-    return static_cast<OpenACCHostClause *>(this)->OpenACCHostClause::toString();
+    return static_cast<OpenACCHostClause *>(this)
+        ->OpenACCHostClause::toString();
   case ACCC_if:
     return static_cast<OpenACCIfClause *>(this)->OpenACCIfClause::toString();
   case ACCC_if_present:
@@ -218,7 +223,8 @@ std::string OpenACCClause::toString() {
     return static_cast<OpenACCIndirectClause *>(this)
         ->OpenACCIndirectClause::toString();
   case ACCC_link:
-    return static_cast<OpenACCLinkClause *>(this)->OpenACCLinkClause::toString();
+    return static_cast<OpenACCLinkClause *>(this)
+        ->OpenACCLinkClause::toString();
   case ACCC_nohost:
     result += "nohost ";
     break;
@@ -241,12 +247,14 @@ std::string OpenACCClause::toString() {
     result += "read ";
     break;
   case ACCC_self:
-    return static_cast<OpenACCSelfClause *>(this)->OpenACCSelfClause::toString();
+    return static_cast<OpenACCSelfClause *>(this)
+        ->OpenACCSelfClause::toString();
   case ACCC_seq:
     result += "seq ";
     break;
   case ACCC_tile:
-    return static_cast<OpenACCTileClause *>(this)->OpenACCTileClause::toString();
+    return static_cast<OpenACCTileClause *>(this)
+        ->OpenACCTileClause::toString();
   case ACCC_update:
     result += "update ";
     break;
@@ -263,9 +271,11 @@ std::string OpenACCClause::toString() {
     result += "write ";
     break;
   case ACCC_vector:
-    return static_cast<OpenACCVectorClause *>(this)->OpenACCVectorClause::toString();
+    return static_cast<OpenACCVectorClause *>(this)
+        ->OpenACCVectorClause::toString();
   case ACCC_worker:
-    return static_cast<OpenACCWorkerClause *>(this)->OpenACCWorkerClause::toString();
+    return static_cast<OpenACCWorkerClause *>(this)
+        ->OpenACCWorkerClause::toString();
   default:
     std::cerr << "Unsupported OpenACC clause kind in toString(): "
               << this->getKind() << std::endl;
@@ -276,7 +286,8 @@ std::string OpenACCClause::toString() {
   clause_string += this->expressionToString();
   clause_string += ") ";
   if (clause_string.size() > 3) {
-    // Remove trailing space from clause name before adding parenthesized expression
+    // Remove trailing space from clause name before adding parenthesized
+    // expression
     if (!result.empty() && result.back() == ' ') {
       result.pop_back();
     }
@@ -489,8 +500,7 @@ std::string OpenACCGangClause::toString() {
   const auto &arg_list = getArgs();
   for (auto it = arg_list.begin(); it != arg_list.end(); ++it) {
     if (it != arg_list.begin()) {
-      parameter_string +=
-          (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
+      parameter_string += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
     }
     switch (it->kind) {
     case ACCC_GANG_ARG_num:
@@ -570,7 +580,11 @@ std::string OpenACCBindClause::toString() {
 
   std::string result = "bind";
   if (!getBinding().text.empty()) {
-    result += "(" + getBinding().text + ") ";
+    std::string binding = getBinding().text;
+    if (getBinding().is_string_literal) {
+      binding = "\"" + binding + "\"";
+    }
+    result += "(" + binding + ") ";
   } else {
     result += " ";
   }

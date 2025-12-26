@@ -29,6 +29,8 @@
 
 !$acc data default(present)
 
+!$acc data device_type(x, y, z)
+
 !$acc data deviceptr(a, b, c)
 
 !$acc data if(5)
@@ -72,4 +74,3 @@
 !$acc data copyin( readonly : x, y, z) copyout( zero : x, y, z) create( zero : x, y, z)
 
 !$acc end data
-

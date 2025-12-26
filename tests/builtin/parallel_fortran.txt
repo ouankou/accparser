@@ -31,6 +31,8 @@
 
 !$acc parallel wait(12, 23, 34)
 
+!$acc parallel wait(devnum: 2: queues: 7, 9)
+
 !$acc parallel copyout(12, 23, 34)
 
 !$acc parallel copyout(zero: 12, 23, 34)

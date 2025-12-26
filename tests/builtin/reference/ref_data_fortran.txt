@@ -13,6 +13,7 @@
 !$acc data create(zero: 12, 23, 34, zero)
 !$acc data create(zero: zero::12, 23, 34)
 !$acc data default(present)
+!$acc data device_type(x, y, z)
 !$acc data deviceptr(a, b, c)
 !$acc data if(5)
 !$acc data if(x==3)

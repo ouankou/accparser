@@ -31,6 +31,8 @@
 
 #pragma acc parallel wait(12, 23, 34)
 
+#pragma acc parallel wait(devnum: 2: queues: 7, 9)
+
 #pragma acc parallel copyout(12, 23, 34)
 
 #pragma acc parallel copyout(zero: 12, 23, 34)
