@@ -67,7 +67,7 @@ detect_c_compiler() {
     return 1
 }
 
-# Detect Fortran compiler if not specified (prefer flang, then gfortran)
+# Detect Fortran compiler if not specified (require flang-20)
 detect_fortran_compiler() {
     if [ -n "$FC" ]; then
         if command -v "$FC" &>/dev/null; then
@@ -79,17 +79,8 @@ detect_fortran_compiler() {
         fi
     fi
 
-    # Try flang variants (LLVM Fortran)
-    for fc_candidate in flang flang-18 flang-17 flang-16 flang-15; do
-        if command -v "$fc_candidate" &>/dev/null; then
-            echo "$fc_candidate"
-            return 0
-        fi
-    done
-
-    # Fall back to gfortran
-    if command -v gfortran &>/dev/null; then
-        echo "gfortran"
+    if command -v flang-20 &>/dev/null; then
+        echo "flang-20"
         return 0
     fi
 
