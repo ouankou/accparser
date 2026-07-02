@@ -21,6 +21,11 @@ OpenACCDirective::~OpenACCDirective() {
   }
 }
 
+OpenACCEndDirective::~OpenACCEndDirective() {
+  delete paired_directive;
+  paired_directive = nullptr;
+}
+
 void OpenACCDataClause::addModifier(OpenACCDataClauseModifierKind modifier) {
   if (modifier == ACCC_DATA_MOD_unknown) {
     return;
@@ -1361,6 +1366,7 @@ void OpenACCReductionClause::mergeClause(OpenACCDirective *directive,
       mergeVarList(existing, incoming);
       current_clauses->pop_back();
       directive->getClausesInOriginalOrder()->pop_back();
+      delete incoming;
       break;
     }
   }

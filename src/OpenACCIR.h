@@ -327,7 +327,9 @@ protected:
   OpenACCDirective *paired_directive;
 
 public:
-  OpenACCEndDirective() : OpenACCDirective(ACCD_end) {};
+  OpenACCEndDirective()
+      : OpenACCDirective(ACCD_end), paired_directive(nullptr) {};
+  ~OpenACCEndDirective() override;
   void setPairedDirective(OpenACCDirective *_paired_directive) {
     paired_directive = _paired_directive;
   };
