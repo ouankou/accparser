@@ -16,8 +16,8 @@ jobs:
   build-llvm:
     strategy:
       matrix:
-        os: [ubuntu-24.04]
-        llvm: [17, 18, 19, 20, 21]
+        os: [ubuntu-26.04]
+        llvm: [21, 22]
 
     runs-on: ${{ matrix.os }}
     env:
@@ -25,18 +25,16 @@ jobs:
       CXX: /usr/bin/clang++-${{ matrix.llvm }}
 
     steps:
-    - uses: actions/checkout@v4
-    # NOTE: Ubuntu 24.04 ships antlr4 v4.9 but antlr4-cpp-runtime v4.10, which are API-incompatible; manually install the matching antlr4 v4.10.
+    - uses: actions/checkout@v7
+    # NOTE: Ubuntu 26.04 ships antlr4 v4.9 but antlr4-cpp-runtime v4.10, which are API-incompatible; manually install the matching antlr4 v4.10.
     - uses: StoneMoe/setup-antlr4@v4.10.1
 
-    - name: Add LLVM repository key
+    - name: Add LLVM repository
       run: |
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm-snapshot.asc > /dev/null
-
-    - name: Add LLVM repository on Ubuntu 24.04
-      if: ${{ matrix.os == 'ubuntu-24.04' }}
-      run: |
-        sudo add-apt-repository -y 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble-${{ matrix.llvm }} main'
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates gnupg wget
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor --yes -o /usr/share/keyrings/llvm-snapshot.gpg
+        echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/resolute/ llvm-toolchain-resolute-${{ matrix.llvm }} main" | sudo tee /etc/apt/sources.list.d/llvm-toolchain-resolute-${{ matrix.llvm }}.list
 
     - name: Install dependencies
       run: |
@@ -44,16 +42,16 @@ jobs:
         sudo apt-get install -y \
           libantlr4-runtime-dev \
           build-essential \
+          default-jre-headless \
           clang-${{ matrix.llvm }} \
           cmake
 
     - name: Build
       run: |
         cd $GITHUB_WORKSPACE/
-        mkdir build
-        cd build
-        cmake ${CMAKE_OPTIONS} -DCMAKE_CXX_FLAGS=${CXX_FLAGS} ..
-        make
+        cmake -E rm -rf build
+        cmake -S . -B build ${CMAKE_OPTIONS:-} -DCMAKE_CXX_FLAGS="${CXX_FLAGS:-}"
+        cmake --build build -- -j$(nproc)
 
     - name: Run built-in tests
       run: |
@@ -68,8 +66,8 @@ jobs:
   build-gnu:
     strategy:
       matrix:
-        os: [ubuntu-24.04]
-        gnu: [9, 10, 11, 12, 13, 14]
+        os: [ubuntu-26.04]
+        gnu: [13, 14, 15, 16]
 
     runs-on: ${{ matrix.os }}
     env:
@@ -77,26 +75,27 @@ jobs:
       CXX: /usr/bin/g++-${{ matrix.gnu }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
+    # NOTE: Ubuntu 26.04 ships antlr4 v4.9 but antlr4-cpp-runtime v4.10, which are API-incompatible; manually install the matching antlr4 v4.10.
     - uses: StoneMoe/setup-antlr4@v4.10.1
 
     - name: Install dependencies
       run: |
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
         sudo apt-get update
         sudo apt-get install -y \
           libantlr4-runtime-dev \
           build-essential \
+          default-jre-headless \
           cmake \
+          gcc-${{ matrix.gnu }} \
           g++-${{ matrix.gnu }}
 
     - name: Build
       run: |
         cd $GITHUB_WORKSPACE/
-        mkdir build
-        cd build
-        cmake ${CMAKE_OPTIONS} -DCMAKE_CXX_FLAGS=${CXX_FLAGS} ..
-        make
+        cmake -E rm -rf build
+        cmake -S . -B build ${CMAKE_OPTIONS:-} -DCMAKE_CXX_FLAGS="${CXX_FLAGS:-}"
+        cmake --build build -- -j$(nproc)
 
     - name: Run built-in tests
       run: |
