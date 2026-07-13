@@ -1,976 +1,124 @@
 parser grammar accparser;
 
-
 options { tokenVocab = acclexer; }
-// These are all supported parser sections:
 
-// Parser file header. Appears at the top in all parser related files. Use e.g. for copyrights.
-
-@ parser :: header
-{/* parser/listener/visitor header section */}
-// Appears before any #include in h + cpp files.
-
-@ parser :: preinclude
-{/* parser precinclude section */}
-// Follows directly after the standard #includes in h + cpp files.
-
-@ parser :: postinclude
-{
-/* parser postinclude section */
-}
-// Directly preceeds the parser class declaration in the h file (e.g. for additional types etc.).
-
-@ parser :: context
-{/* parser context section */}
-
-@ parser :: members
-{
-/* public parser declarations/members section */
-bool myAction() { return true; }
-bool doesItBlend() { return true; }
-void cleanUp() {}
-void doInit() {}
-void doAfter() {}
-}
-// Appears in the public part of the parser in the h file.
-
-@ parser :: declarations
-{/* private parser declarations section */}
-// Appears in line with the other class member definitions in the cpp file.
-
-@ parser :: definitions
-{/* parser definitions section */}
-// Additionally there are similar sections for (base)listener and (base)visitor files.
-
-@ parser :: listenerpreinclude
-{/* listener preinclude section */}
-@ parser :: listenerpostinclude
-{/* listener postinclude section */}
-@ parser :: listenerdeclarations
-{/* listener public declarations/members section */ }
-@ parser :: listenermembers
-{/* listener private declarations/members section */}
-@ parser :: listenerdefinitions
-{/* listener definitions section */ }
-@ parser :: baselistenerpreinclude
-{/* base listener preinclude section */}
-@ parser :: baselistenerpostinclude
-{/* base listener postinclude section */}
-@ parser :: baselistenerdeclarations
-{/* base listener public declarations/members section */}
-@ parser :: baselistenermembers
-{/* base listener private declarations/members section */}
-@ parser :: baselistenerdefinitions
-{/* base listener definitions section */}
-@ parser :: visitorpreinclude
-{/* visitor preinclude section */}
-@ parser :: visitorpostinclude
-{/* visitor postinclude section */}
-@ parser :: visitordeclarations
-{/* visitor public declarations/members section */}
-@ parser :: visitormembers
-{/* visitor private declarations/members section */}
-@ parser :: visitordefinitions
-{/* visitor definitions section */}
-@ parser :: basevisitorpreinclude
-{/* base visitor preinclude section */}
-@ parser :: basevisitorpostinclude
-{/* base visitor postinclude section */}
-@ parser :: basevisitordeclarations
-{/* base visitor public declarations/members section */}
-@ parser :: basevisitormembers
-{/* base visitor private declarations/members section */}
-@ parser :: basevisitordefinitions
-{/* base visitor definitions section */}
-// Actual grammar start.
-
-acc
-   : prefix ACC openacc_directive EOF
-   ;
-
-prefix
-   : c_prefix
-   | fortran_prefix
-   ;
-
-c_prefix
-   : C_PREFIX
-   ;
-
-fortran_prefix
-   : FORTRAN_PREFIX
-   ;
-
-openacc_directive
-   : atomic_directive
-   | cache_directive
-   | data_directive
-   | declare_directive
-   | end_directive
-   | enter_data_directive
-   | exit_data_directive
-   | host_data_directive
-   | init_directive
-   | kernels_directive
-   | kernels_loop_directive
-   | loop_directive
-   | parallel_directive
-   | parallel_loop_directive
-   | routine_directive
-   | serial_directive
-   | serial_loop_directive
-   | set_directive
-   | shutdown_directive
-   | update_directive
-   | wait_directive
-   ;
-
-atomic_directive
-   : ATOMIC atomic_clause? if_clause?
-   ;
-
-atomic_clause
-   : capture_clause
-   | read_clause
-   | update_clause
-   | write_clause
-   ;
-
-cache_directive
-   : CACHE LEFT_PAREN var_list RIGHT_PAREN
-   | CACHE LEFT_PAREN cache_directive_modifier COLON var_list RIGHT_PAREN
-   ;
-
-cache_directive_modifier
-   : READONLY
-   ;
-
-data_directive
-   : DATA data_clause_list
-   ;
-
-data_clause_list
-   : data_clauses*
-   ;
-
-data_clauses
-   : async_clause
-   | attach_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | if_clause
-   | no_create_clause
-   | present_clause
-   | wait_clause
-   ;
-
-declare_directive
-   : DECLARE declare_clause_list
-   ;
-
-declare_clause_list
-   : declare_clauses+
-   ;
-
-declare_clauses
-   : copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | device_resident_clause
-   | deviceptr_clause
-   | link_clause
-   | present_clause
-   ;
-
-end_directive
-   : END end_clause_seq
-   ;
-
-end_clause_seq
-   : fortran_paired_directive
-   ;
-
-fortran_paired_directive
-   : end_atomic_directive
-   | end_data_directive
-   | end_host_data_directive
-   | end_kernels_directive
-   | end_kernels_loop_directive
-   | end_loop_directive
-   | end_parallel_directive
-   | end_parallel_loop_directive
-   | end_serial_directive
-   | end_serial_loop_directive
-   ;
-
-end_atomic_directive
-   : atomic_directive
-   ;
-
-end_data_directive
-   : data_directive
-   ;
-
-end_host_data_directive
-   : HOST_DATA
-   ;
-
-end_kernels_directive
-   : kernels_directive
-   ;
-
-end_kernels_loop_directive
-   : kernels_loop_directive
-   ;
-
-end_loop_directive
-   : loop_directive
-   ;
-
-end_parallel_directive
-   : parallel_directive
-   ;
-
-end_parallel_loop_directive
-   : parallel_loop_directive
-   ;
-
-end_serial_directive
-   : serial_directive
-   ;
-
-end_serial_loop_directive
-   : serial_loop_directive
-   ;
-
-enter_data_directive
-   : ENTER DATA enter_data_clause_list
-   ;
-
-enter_data_clause_list
-   : enter_data_clauses+
-   ;
-
-enter_data_clauses
-   : async_clause
-   | attach_clause
-   | copyin_clause
-   | create_clause
-   | if_clause
-   | wait_argument_clause
-   ;
-
-exit_data_directive
-   : EXIT DATA exit_data_clause_list
-   ;
-
-exit_data_clause_list
-   : exit_data_clauses+
-   ;
-
-exit_data_clauses
-   : async_clause
-   | copyout_clause
-   | delete_clause
-   | detach_clause
-   | finalize_clause
-   | if_clause
-   | wait_argument_clause
-   ;
-
-host_data_directive
-   : HOST_DATA host_data_clause_list
-   ;
-
-host_data_clause_list
-   : host_data_clauses+
-   ;
-
-host_data_clauses
-   : if_clause
-   | if_present_clause
-   | use_device_clause
-   ;
-
-init_directive
-   : INIT init_clause_list
-   ;
-
-init_clause_list
-   : init_clauses*
-   ;
-
-init_clauses
-   : device_type_clause
-   | device_num_clause
-   | if_clause
-   ;
-
-kernels_directive
-   : KERNELS kernels_clause_list
-   ;
-
-kernels_clause_list
-   : kernels_clauses*
-   ;
-
-kernels_clauses
-   : async_clause
-   | attach_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | if_clause
-   | no_create_clause
-   | num_gangs_clause
-   | num_workers_clause
-   | present_clause
-   | self_clause
-   | vector_length_clause
-   | wait_clause
-   ;
-
-kernels_loop_directive
-   : KERNELS LOOP kernels_loop_clause_list
-   ;
-
-kernels_loop_clause_list
-   : kernels_loop_clauses*
-   ;
-
-kernels_loop_clauses
-   : async_clause
-   | attach_clause
-   | auto_clause
-   | collapse_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | gang_clause
-   | if_clause
-   | independent_clause
-   | no_create_clause
-   | num_gangs_clause
-   | num_workers_clause
-   | present_clause
-   | private_clause
-   | reduction_clause
-   | self_clause
-   | seq_clause
-   | tile_clause
-   | vector_clause
-   | vector_length_clause
-   | wait_clause
-   | worker_clause
-   ;
-
-loop_directive
-   : LOOP loop_clause_list
-   ;
-
-loop_clause_list
-   : loop_clauses*
-   ;
-
-loop_clauses
-   : auto_clause
-   | collapse_clause
-   | device_type_clause
-   | gang_clause
-   | independent_clause
-   | private_clause
-   | reduction_clause
-   | seq_clause
-   | tile_clause
-   | vector_clause
-   | worker_clause
-   ;
-
-parallel_directive
-   : PARALLEL parallel_clause_list
-   ;
-
-parallel_clause_list
-   : parallel_clauses*
-   ;
-
-parallel_clauses
-   : async_clause
-   | attach_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | firstprivate_clause
-   | if_clause
-   | no_create_clause
-   | num_gangs_clause
-   | num_workers_clause
-   | present_clause
-   | private_clause
-   | reduction_clause
-   | self_clause
-   | vector_length_clause
-   | wait_clause
-   ;
-
-parallel_loop_directive
-   : PARALLEL LOOP parallel_loop_clause_list
-   ;
-
-parallel_loop_clause_list
-   : parallel_loop_clauses*
-   ;
-
-parallel_loop_clauses
-   : async_clause
-   | attach_clause
-   | auto_clause
-   | collapse_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | firstprivate_clause
-   | gang_clause
-   | if_clause
-   | independent_clause
-   | no_create_clause
-   | num_gangs_clause
-   | num_workers_clause
-   | present_clause
-   | private_clause
-   | reduction_clause
-   | self_clause
-   | seq_clause
-   | tile_clause
-   | vector_clause
-   | vector_length_clause
-   | wait_clause
-   | worker_clause
-   ;
-
-routine_directive
-   : ROUTINE routine_clause_list
-   | ROUTINE LEFT_PAREN name RIGHT_PAREN routine_clause_list
-   ;
-
-routine_clause_list
-   : routine_clauses+
-   ;
-
-routine_clauses
-   : bind_clause
-   | device_type_clause
-   | gang_no_list_clause
-   | indirect_clause
-   | nohost_clause
-   | seq_clause
-   | vector_no_modifier_clause
-   | worker_no_modifier_clause
-   ;
-
-name
-   : EXPR
-   ;
-
-serial_directive
-   : SERIAL serial_clause_list
-   ;
-
-serial_clause_list
-   : serial_clauses*
-   ;
-
-serial_clauses
-   : async_clause
-   | attach_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | firstprivate_clause
-   | if_clause
-   | no_create_clause
-   | present_clause
-   | private_clause
-   | reduction_clause
-   | self_clause
-   | wait_clause
-   ;
-
-serial_loop_directive
-   : SERIAL LOOP serial_loop_clause_list
-   ;
-
-serial_loop_clause_list
-   : serial_loop_clauses*
-   ;
-
-serial_loop_clauses
-   : async_clause
-   | attach_clause
-   | auto_clause
-   | collapse_clause
-   | copy_clause
-   | copyin_clause
-   | copyout_clause
-   | create_clause
-   | default_clause
-   | device_type_clause
-   | deviceptr_clause
-   | firstprivate_clause
-   | gang_clause
-   | if_clause
-   | independent_clause
-   | no_create_clause
-   | present_clause
-   | private_clause
-   | reduction_clause
-   | self_clause
-   | seq_clause
-   | tile_clause
-   | vector_clause
-   | wait_clause
-   | worker_clause
-   ;
-
-set_directive
-   : SET set_clause_list
-   ;
-
-set_clause_list
-   : set_clauses*
-   ;
-
-set_clauses
-   : default_async_clause
-   | device_type_clause
-   | device_num_clause
-   | if_clause
-   ;
-
-shutdown_directive
-   : SHUTDOWN shutdown_clause_list
-   ;
-
-shutdown_clause_list
-   : shutdown_clauses*
-   ;
-
-shutdown_clauses
-   : device_type_clause
-   | device_num_clause
-   | if_clause
-   ;
-
-update_directive
-   : UPDATE update_clause_list
-   ;
-
-update_clause_list
-   : update_clauses+
-   ;
-
-update_clauses
-   : async_clause
-   | device_clause
-   | device_type_clause
-   | host_clause
-   | if_clause
-   | if_present_clause
-   | self_list_clause
-   | wait_argument_clause
-   ;
-
-wait_directive
-   : WAIT wait_clause_list
-   | WAIT LEFT_PAREN wait_argument RIGHT_PAREN wait_clause_list
-   ;
-
-wait_clause_list
-   : wait_clauses*
-   ;
-
-wait_clauses
-   : async_clause
-   | if_clause
-   ;
-
-async_clause
-   : ASYNC
-   | ASYNC LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-attach_clause
-   : ATTACH LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-auto_clause
-   : AUTO
-   ;
-
-bind_clause
-   : BIND LEFT_PAREN name_or_string RIGHT_PAREN
-   ;
-
-name_or_string
-   : EXPR
-   | STRING_LITERAL
-   ;
-
-capture_clause
-   : CAPTURE
-   ;
-
-collapse_clause
-   : COLLAPSE LEFT_PAREN (FORCE COLON)? const_int RIGHT_PAREN
-   ;
-
-copy_clause
-   : (PCOPY | PRESENT_OR_COPY | COPY) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCOPY | PRESENT_OR_COPY | COPY) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
-   ;
-
-copyin_clause
-   : (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCOPYIN | PRESENT_OR_COPYIN | COPYIN) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
-   ;
-
-copyout_clause
-   : (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCOPYOUT | PRESENT_OR_COPYOUT | COPYOUT) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
-   ;
-
-create_clause
-   : (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN var_list RIGHT_PAREN
-   | (PCREATE | PRESENT_OR_CREATE | CREATE) LEFT_PAREN data_clause_modifier_list COLON var_list RIGHT_PAREN
-   ;
-
-data_clause_modifier_list
-   : (data_clause_modifier COMMA | data_clause_modifier)+
-   ;
-
-data_clause_modifier
-   : ALWAYS
-   | ALWAYSIN
-   | ALWAYSOUT
-   | CAPTURE
-   | READONLY
-   | ZERO
-   ;
-
-default_clause
-   : DEFAULT LEFT_PAREN default_kind RIGHT_PAREN
-   ;
-
-default_kind
-   : NONE
-   | PRESENT
-   ;
-
-default_async_clause
-   : DEFAULT_ASYNC LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-delete_clause
-   : DELETE LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-detach_clause
-   : DETACH LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-device_clause
-   : DEVICE LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-device_num_clause
-   : DEVICE_NUM LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-device_resident_clause
-   : DEVICE_RESIDENT LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-device_type_clause
-   : DEVICE_TYPE LEFT_PAREN device_type_list RIGHT_PAREN
-   ;
-
-device_type_list
-   : (device_type_item COMMA | device_type_item)+
-   ;
-
-device_type_item
-   : HOST
-   | ANY
-   | MULTICORE
-   | DEFAULT
-   | EXPR
-   ;
-
-deviceptr_clause
-   : DEVICEPTR LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-finalize_clause
-   : FINALIZE
-   ;
-
-firstprivate_clause
-   : FIRSTPRIVATE LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-gang_clause
-   : GANG
-   | GANG LEFT_PAREN gang_arg_list RIGHT_PAREN
-   ;
-
-gang_arg_list
-   : (gang_arg COMMA | gang_arg)+
-   ;
-
-gang_arg
-   : NUM COLON int_expr
-   | DIM COLON int_expr
-   | STATIC (COLON int_expr)?
-   | int_expr
-   ;
-
-gang_no_list_clause
-   : GANG
-   | GANG LEFT_PAREN DIM COLON int_expr RIGHT_PAREN
-   ;
-
-host_clause
-   : HOST LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-if_clause
-   : IF LEFT_PAREN condition RIGHT_PAREN
-   ;
-
-if_present_clause
-   : IF_PRESENT
-   ;
-
-independent_clause
-   : INDEPENDENT
-   ;
-
-indirect_clause
-   : INDIRECT
-   | INDIRECT LEFT_PAREN name_or_string RIGHT_PAREN
-   ;
-
-link_clause
-   : LINK LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-nohost_clause
-   : NOHOST
-   ;
-
-no_create_clause
-   : NO_CREATE LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-num_gangs_clause
-   : NUM_GANGS LEFT_PAREN int_expr_list RIGHT_PAREN
-   ;
-
-num_workers_clause
-   : NUM_WORKERS LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-present_clause
-   : PRESENT LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-private_clause
-   : PRIVATE LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-read_clause
-   : READ
-   ;
-
-reduction_clause
-   : REDUCTION LEFT_PAREN reduction_operator COLON var_list RIGHT_PAREN
-   ;
-
-reduction_operator
-   : ADD
-   | SUB
-   | MUL
-   | MAX
-   | MIN
-   | BITAND
-   | BITOR
-   | BITXOR
-   | LOGAND
-   | LOGOR
-   | FORT_AND
-   | FORT_OR
-   | FORT_EQV
-   | FORT_NEQV
-   | FORT_IAND
-   | FORT_IOR
-   | FORT_IEOR
-   ;
-
-self_clause
-   : SELF
-   | SELF LEFT_PAREN condition RIGHT_PAREN
-   ;
-
-self_list_clause
-   : SELF LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-condition
-   : EXPR
-   ;
-
-seq_clause
-   : SEQ
-   ;
-
-tile_clause
-   : TILE LEFT_PAREN size_expr_list RIGHT_PAREN
-   ;
-
-update_clause
-   : UPDATE
-   ;
-
-size_expr_list
-   : (var COMMA | var)+
-   ;
-
-use_device_clause
-   : USE_DEVICE LEFT_PAREN var_list RIGHT_PAREN
-   ;
-
-vector_clause
-   : VECTOR
-   | VECTOR vector_clause_args
-   ;
-
-vector_clause_args
-   : LEFT_PAREN vector_clause_modifier COLON int_expr RIGHT_PAREN
-   | LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-vector_clause_modifier
-   : LENGTH
-   ;
-
-vector_no_modifier_clause
-   : VECTOR
-   ;
-
-vector_length_clause
-   : VECTOR_LENGTH LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-wait_clause
-   : WAIT
-   | WAIT LEFT_PAREN wait_argument RIGHT_PAREN
-   ;
-
-wait_argument_clause
-   : WAIT
-   | WAIT LEFT_PAREN wait_argument RIGHT_PAREN
-   ;
-
-wait_argument
-   : DEVNUM COLON wait_argument_int_expr COLON wait_argument_queues COLON wait_int_expr_list
-   | DEVNUM COLON wait_argument_int_expr COLON wait_int_expr_list
-   | wait_argument_queues COLON wait_int_expr_list
-   | wait_int_expr_list
-   ;
-
-wait_int_expr_list
-   : (wait_int_expr COMMA | wait_int_expr)+
-   ;
-
-wait_int_expr
-   : EXPR
-   ;
-
-wait_argument_queues
-   : QUEUES
-   ;
-
-wait_argument_int_expr
-   : EXPR
-   ;
-
-worker_clause
-   : WORKER
-   | WORKER worker_clause_args
-   ;
-
-worker_clause_args
-   : LEFT_PAREN worker_clause_modifier COLON int_expr RIGHT_PAREN
-   | LEFT_PAREN int_expr RIGHT_PAREN
-   ;
-
-worker_clause_modifier
-   : NUM
-   ;
-
-worker_no_modifier_clause
-   : WORKER
-   ;
-
-write_clause
-   : WRITE
-   ;
-
-const_int
-   : EXPR
-   ;
-
-int_expr_list
-   : (int_expr COMMA | int_expr)+
-   ;
-
-int_expr
-   : EXPR
-   ;
-
-var_list
-   : (var COMMA | var)+
-   ;
-
-var
-   : EXPR
-   ; finally
-   {
-  cleanUp();
-}
+directive
+  : ATOMIC clause_sequence? EOF
+  | CACHE payload EOF
+  | DATA clause_sequence? EOF
+  | DECLARE clause_sequence? EOF
+  | END end_kind EOF
+  | ENTER DATA clause_sequence? EOF
+  | EXIT DATA clause_sequence? EOF
+  | HOST_DATA clause_sequence? EOF
+  | INIT clause_sequence? EOF
+  | KERNELS LOOP clause_sequence? EOF
+  | KERNELS clause_sequence? EOF
+  | LOOP clause_sequence? EOF
+  | PARALLEL LOOP clause_sequence? EOF
+  | PARALLEL clause_sequence? EOF
+  | ROUTINE payload? clause_sequence? EOF
+  | SERIAL LOOP clause_sequence? EOF
+  | SERIAL clause_sequence? EOF
+  | SET clause_sequence? EOF
+  | SHUTDOWN clause_sequence? EOF
+  | UPDATE clause_sequence? EOF
+  | WAIT payload? clause_sequence? EOF
+  ;
+
+end_kind
+  : ATOMIC
+  | DATA
+  | HOST_DATA
+  | KERNELS LOOP?
+  | PARALLEL LOOP?
+  | SERIAL LOOP?
+  | LOOP
+  | word
+  ;
+
+clause_sequence
+  : clause (COMMA? clause)*
+  ;
+
+clause
+  : word payload?
+  ;
+
+payload
+  : LEFT_PAREN PAYLOAD RIGHT_PAREN
+  ;
+
+word
+  : ATOMIC
+  | CACHE
+  | DATA
+  | DECLARE
+  | END
+  | ENTER
+  | EXIT
+  | HOST_DATA
+  | INIT
+  | KERNELS
+  | LOOP
+  | PARALLEL
+  | ROUTINE
+  | SERIAL
+  | SET
+  | SHUTDOWN
+  | UPDATE
+  | WAIT
+  | ASYNC
+  | ATTACH
+  | AUTO
+  | BIND
+  | CAPTURE
+  | COLLAPSE
+  | COPY
+  | COPYIN
+  | COPYOUT
+  | CREATE
+  | DEFAULT_ASYNC
+  | DEFAULT
+  | DELETE
+  | DETACH
+  | DEVICE
+  | DEVICE_NUM
+  | DEVICE_RESIDENT
+  | DEVICE_TYPE
+  | DEVICEPTR
+  | FINALIZE
+  | FIRSTPRIVATE
+  | GANG
+  | HOST
+  | IF
+  | IF_PRESENT
+  | INDEPENDENT
+  | LINK
+  | NO_CREATE
+  | NOHOST
+  | NUM_GANGS
+  | NUM_WORKERS
+  | PCOPY
+  | PCOPYIN
+  | PCOPYOUT
+  | PCREATE
+  | PRESENT_OR_COPY
+  | PRESENT_OR_COPYIN
+  | PRESENT_OR_COPYOUT
+  | PRESENT_OR_CREATE
+  | PRESENT
+  | PRIVATE
+  | READ
+  | REDUCTION
+  | SELF
+  | SEQ
+  | TILE
+  | USE_DEVICE
+  | VECTOR
+  | VECTOR_LENGTH
+  | WORKER
+  | WRITE
+  | DTYPE
+  | IDENTIFIER
+  ;

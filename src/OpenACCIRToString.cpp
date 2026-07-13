@@ -1,1155 +1,523 @@
-#include "OpenACCIR.h"
-#include <cstdarg>
+//===----------------------------------------------------------------------===//
+//
+// Part of accparser, under the BSD 3-Clause License.
+// See LICENSE for license information.
+// SPDX-License-Identifier: BSD-3-Clause
+//
+//===----------------------------------------------------------------------===//
 
-std::string OpenACCDirective::generatePragmaString(std::string prefix,
-                                                   std::string beginning_symbol,
-                                                   std::string ending_symbol) {
+#include "OpenACCParser.h"
 
-  if (this->getBaseLang() == ACC_Lang_Fortran && !prefix.empty()) {
-    prefix = "!$acc ";
-  };
-  std::string result = prefix;
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 
-  result += this->toString();
+namespace openacc {
+namespace {
 
-  result += beginning_symbol;
-
-  switch (this->getKind()) {
-  case ACCD_end: {
-    result += ((OpenACCEndDirective *)this)
-                  ->getPairedDirective()
-                  ->generatePragmaString("", "", "");
-    break;
-  }
-  default: {
-    ;
-  }
-  };
-
-  std::vector<OpenACCClause *> *clauses = this->getClausesInOriginalOrder();
-  if (clauses->size() != 0) {
-    bool first = true;
-    for (auto *clause : *clauses) {
-      std::string clause_str = clause->toString();
-      // Strip trailing whitespace the clause printer may have added.
-      while (!clause_str.empty() && std::isspace(clause_str.back())) {
-        clause_str.pop_back();
-      }
-      if (clause_str.empty()) {
-        continue;
-      }
-      if (!first) {
-        result += " ";
-      }
-      result += clause_str;
-      first = false;
-    }
-  }
-  result += ending_symbol;
-
-  return result;
+template <class... Ts> struct Overloaded : Ts... {
+  using Ts::operator()...;
 };
+template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
 
-std::string OpenACCDirective::toString() {
-
-  std::string result;
-
-  switch (this->getKind()) {
-  case ACCD_atomic:
-    result += "atomic ";
-    break;
-  case ACCD_data:
-    result += "data ";
-    break;
-  case ACCD_declare:
-    result += "declare ";
-    break;
-  case ACCD_end:
-    result += "end ";
-    break;
-  case ACCD_enter_data:
-    result += "enter data ";
-    break;
-  case ACCD_exit_data:
-    result += "exit data ";
-    break;
-  case ACCD_host_data:
-    result += "host_data ";
-    break;
-  case ACCD_init:
-    result += "init ";
-    break;
-  case ACCD_kernels:
-    result += "kernels ";
-    break;
-  case ACCD_kernels_loop:
-    result += "kernels loop ";
-    break;
-  case ACCD_loop:
-    result += "loop ";
-    break;
-  case ACCD_parallel:
-    result += "parallel ";
-    break;
-  case ACCD_parallel_loop:
-    result += "parallel loop ";
-    break;
-  case ACCD_routine:
-    result += "routine ";
-    if (!((OpenACCRoutineDirective *)this)->getName().text.empty()) {
-      result += "(" + ((OpenACCRoutineDirective *)this)->getName().text + ") ";
-    }
-    break;
-  case ACCD_serial:
-    result += "serial ";
-    break;
-  case ACCD_serial_loop:
-    result += "serial loop ";
-    break;
-  case ACCD_set:
-    result += "set ";
-    break;
-  case ACCD_shutdown:
-    result += "shutdown ";
-    break;
-  case ACCD_update:
-    result += "update ";
-    break;
-  default:
-    printf("The directive enum is not supported yet.\n");
-    assert(0);
-  };
-
-  return result;
-};
-
-std::string OpenACCClause::expressionToString() const {
-
-  std::string result;
-  const auto *expr = this->getExpressions();
-  if (expr != nullptr && !expr->empty()) {
-    for (size_t idx = 0; idx < expr->size(); ++idx) {
-      if (idx > 0) {
-        result +=
-            ((*expr)[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-      }
-      result += (*expr)[idx].text;
-    }
+std::string directiveName(DirectiveKind Kind) {
+  switch (Kind) {
+  case DirectiveKind::Atomic:
+    return "atomic";
+  case DirectiveKind::Cache:
+    return "cache";
+  case DirectiveKind::Data:
+    return "data";
+  case DirectiveKind::Declare:
+    return "declare";
+  case DirectiveKind::End:
+    return "end";
+  case DirectiveKind::EnterData:
+    return "enter data";
+  case DirectiveKind::ExitData:
+    return "exit data";
+  case DirectiveKind::HostData:
+    return "host_data";
+  case DirectiveKind::Init:
+    return "init";
+  case DirectiveKind::Kernels:
+    return "kernels";
+  case DirectiveKind::KernelsLoop:
+    return "kernels loop";
+  case DirectiveKind::Loop:
+    return "loop";
+  case DirectiveKind::Parallel:
+    return "parallel";
+  case DirectiveKind::ParallelLoop:
+    return "parallel loop";
+  case DirectiveKind::Routine:
+    return "routine";
+  case DirectiveKind::Serial:
+    return "serial";
+  case DirectiveKind::SerialLoop:
+    return "serial loop";
+  case DirectiveKind::Set:
+    return "set";
+  case DirectiveKind::Shutdown:
+    return "shutdown";
+  case DirectiveKind::Update:
+    return "update";
+  case DirectiveKind::Wait:
+    return "wait";
   }
+  return {};
+}
 
-  return result;
-};
-
-std::string OpenACCClause::toString() {
-
-  std::string result;
-
-  switch (this->getKind()) {
-  case ACCC_async:
-    return static_cast<OpenACCAsyncClause *>(this)
-        ->OpenACCAsyncClause::toString();
-  case ACCC_attach:
-    return static_cast<OpenACCAttachClause *>(this)
-        ->OpenACCAttachClause::toString();
-  case ACCC_auto:
-    result += "auto ";
-    break;
-  case ACCC_bind:
-    return static_cast<OpenACCBindClause *>(this)
-        ->OpenACCBindClause::toString();
-  case ACCC_capture:
-    result += "capture ";
-    break;
-  case ACCC_delete:
-    return static_cast<OpenACCDeleteClause *>(this)
-        ->OpenACCDeleteClause::toString();
-  case ACCC_detach:
-    return static_cast<OpenACCDetachClause *>(this)
-        ->OpenACCDetachClause::toString();
-  case ACCC_collapse:
-    return static_cast<OpenACCCollapseClause *>(this)
-        ->OpenACCCollapseClause::toString();
-  case ACCC_copy:
-    return static_cast<OpenACCCopyClause *>(this)
-        ->OpenACCCopyClause::toString();
-  case ACCC_copyin:
-    return static_cast<OpenACCCopyinClause *>(this)
-        ->OpenACCCopyinClause::toString();
-  case ACCC_copyout:
-    return static_cast<OpenACCCopyoutClause *>(this)
-        ->OpenACCCopyoutClause::toString();
-  case ACCC_create:
-    return static_cast<OpenACCCreateClause *>(this)
-        ->OpenACCCreateClause::toString();
-  case ACCC_default_async:
-    return static_cast<OpenACCDefaultAsyncClause *>(this)
-        ->OpenACCDefaultAsyncClause::toString();
-  case ACCC_device:
-    return static_cast<OpenACCDeviceClause *>(this)
-        ->OpenACCDeviceClause::toString();
-  case ACCC_device_num:
-    return static_cast<OpenACCDeviceNumClause *>(this)
-        ->OpenACCDeviceNumClause::toString();
-  case ACCC_device_resident:
-    return static_cast<OpenACCDeviceResidentClause *>(this)
-        ->OpenACCDeviceResidentClause::toString();
-  case ACCC_device_type:
-    return static_cast<OpenACCDeviceTypeClause *>(this)
-        ->OpenACCDeviceTypeClause::toString();
-  case ACCC_deviceptr:
-    return static_cast<OpenACCDeviceptrClause *>(this)
-        ->OpenACCDeviceptrClause::toString();
-  case ACCC_finalize:
-    result += "finalize ";
-    break;
-  case ACCC_firstprivate:
-    return static_cast<OpenACCFirstprivateClause *>(this)
-        ->OpenACCFirstprivateClause::toString();
-  case ACCC_gang:
-    return static_cast<OpenACCGangClause *>(this)
-        ->OpenACCGangClause::toString();
-  case ACCC_host:
-    return static_cast<OpenACCHostClause *>(this)
-        ->OpenACCHostClause::toString();
-  case ACCC_if:
-    return static_cast<OpenACCIfClause *>(this)->OpenACCIfClause::toString();
-  case ACCC_if_present:
-    result += "if_present ";
-    break;
-  case ACCC_independent:
-    result += "independent ";
-    break;
-  case ACCC_indirect:
-    return static_cast<OpenACCIndirectClause *>(this)
-        ->OpenACCIndirectClause::toString();
-  case ACCC_link:
-    return static_cast<OpenACCLinkClause *>(this)
-        ->OpenACCLinkClause::toString();
-  case ACCC_nohost:
-    result += "nohost ";
-    break;
-  case ACCC_no_create:
-    return static_cast<OpenACCNoCreateClause *>(this)
-        ->OpenACCNoCreateClause::toString();
-  case ACCC_num_gangs:
-    return static_cast<OpenACCNumGangsClause *>(this)
-        ->OpenACCNumGangsClause::toString();
-  case ACCC_num_workers:
-    return static_cast<OpenACCNumWorkersClause *>(this)
-        ->OpenACCNumWorkersClause::toString();
-  case ACCC_present:
-    return static_cast<OpenACCPresentClause *>(this)
-        ->OpenACCPresentClause::toString();
-  case ACCC_private:
-    return static_cast<OpenACCPrivateClause *>(this)
-        ->OpenACCPrivateClause::toString();
-  case ACCC_read:
-    result += "read ";
-    break;
-  case ACCC_self:
-    return static_cast<OpenACCSelfClause *>(this)
-        ->OpenACCSelfClause::toString();
-  case ACCC_seq:
-    result += "seq ";
-    break;
-  case ACCC_tile:
-    return static_cast<OpenACCTileClause *>(this)
-        ->OpenACCTileClause::toString();
-  case ACCC_update:
-    result += "update ";
-    break;
-  case ACCC_use_device:
-    return static_cast<OpenACCUseDeviceClause *>(this)
-        ->OpenACCUseDeviceClause::toString();
-  case ACCC_vector_length:
-    return static_cast<OpenACCVectorLengthClause *>(this)
-        ->OpenACCVectorLengthClause::toString();
-  case ACCC_wait:
-    result += "wait ";
-    break;
-  case ACCC_write:
-    result += "write ";
-    break;
-  case ACCC_vector:
-    return static_cast<OpenACCVectorClause *>(this)
-        ->OpenACCVectorClause::toString();
-  case ACCC_worker:
-    return static_cast<OpenACCWorkerClause *>(this)
-        ->OpenACCWorkerClause::toString();
-  default:
-    std::cerr << "Unsupported OpenACC clause kind in toString(): "
-              << this->getKind() << std::endl;
-    assert(false && "Unsupported OpenACC clause kind in toString()");
+std::string endDirectiveName(EndDirectiveKind Kind) {
+  switch (Kind) {
+  case EndDirectiveKind::Atomic:
+    return "atomic";
+  case EndDirectiveKind::Data:
+    return "data";
+  case EndDirectiveKind::HostData:
+    return "host_data";
+  case EndDirectiveKind::Kernels:
+    return "kernels";
+  case EndDirectiveKind::KernelsLoop:
+    return "kernels loop";
+  case EndDirectiveKind::Loop:
+    return "loop";
+  case EndDirectiveKind::Parallel:
+    return "parallel";
+  case EndDirectiveKind::ParallelLoop:
+    return "parallel loop";
+  case EndDirectiveKind::Serial:
+    return "serial";
+  case EndDirectiveKind::SerialLoop:
+    return "serial loop";
   }
+  return {};
+}
 
-  std::string clause_string = "(";
-  clause_string += this->expressionToString();
-  clause_string += ") ";
-  if (clause_string.size() > 3) {
-    // Remove trailing space from clause name before adding parenthesized
-    // expression
-    if (!result.empty() && result.back() == ' ') {
-      result.pop_back();
-    }
-    result += clause_string;
+std::string flagName(FlagClauseKind Kind) {
+  switch (Kind) {
+  case FlagClauseKind::Auto:
+    return "auto";
+  case FlagClauseKind::Capture:
+    return "capture";
+  case FlagClauseKind::Finalize:
+    return "finalize";
+  case FlagClauseKind::IfPresent:
+    return "if_present";
+  case FlagClauseKind::Independent:
+    return "independent";
+  case FlagClauseKind::NoHost:
+    return "nohost";
+  case FlagClauseKind::Read:
+    return "read";
+  case FlagClauseKind::Seq:
+    return "seq";
+  case FlagClauseKind::Update:
+    return "update";
+  case FlagClauseKind::Write:
+    return "write";
   }
+  return {};
+}
 
-  return result;
-};
-
-static std::string deviceTypeToString(OpenACCDeviceTypeKind kind) {
-  switch (kind) {
-  case ACCC_DEVICE_TYPE_host:
+std::string varListName(VarListClauseKind Kind) {
+  switch (Kind) {
+  case VarListClauseKind::Attach:
+    return "attach";
+  case VarListClauseKind::Delete:
+    return "delete";
+  case VarListClauseKind::Detach:
+    return "detach";
+  case VarListClauseKind::Device:
+    return "device";
+  case VarListClauseKind::DeviceResident:
+    return "device_resident";
+  case VarListClauseKind::DevicePtr:
+    return "deviceptr";
+  case VarListClauseKind::FirstPrivate:
+    return "firstprivate";
+  case VarListClauseKind::Host:
     return "host";
-  case ACCC_DEVICE_TYPE_any:
-    return "*";
-  case ACCC_DEVICE_TYPE_multicore:
-    return "multicore";
-  case ACCC_DEVICE_TYPE_default:
-    return "default";
-  default:
-    return "";
+  case VarListClauseKind::Link:
+    return "link";
+  case VarListClauseKind::NoCreate:
+    return "no_create";
+  case VarListClauseKind::Present:
+    return "present";
+  case VarListClauseKind::Private:
+    return "private";
+  case VarListClauseKind::Self:
+    return "self";
+  case VarListClauseKind::UseDevice:
+    return "use_device";
   }
+  return {};
 }
 
-std::string OpenACCDeviceTypeClause::toString() {
-  std::string result = "device_type";
-  std::string clause_string = "";
-
-  bool first = true;
-  for (auto kind : device_types) {
-    std::string name = deviceTypeToString(kind);
-    if (name.empty()) {
-      continue;
-    }
-    if (!first) {
-      clause_string += ", ";
-    }
-    clause_string += name;
-    first = false;
+template <typename T, typename Printer>
+std::string join(const std::vector<T> &Values, std::string_view Separator,
+                 Printer Print) {
+  std::string Result;
+  for (std::size_t I = 0; I < Values.size(); ++I) {
+    if (I != 0)
+      Result += Separator;
+    Result += Print(Values[I]);
   }
-  for (const auto &raw : unknown_types) {
-    if (!first) {
-      clause_string += ", ";
-    }
-    clause_string += raw;
-    first = false;
-  }
-
-  if (!clause_string.empty()) {
-    result += "(" + clause_string + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
+  return Result;
 }
 
-std::string OpenACCCacheDirective::toString() {
-
-  std::string result = "cache";
-  std::string parameter_string = "";
-  OpenACCCacheDirectiveModifier modifier = this->getModifier();
-  switch (modifier) {
-  case ACCC_CACHE_readonly:
-    parameter_string = "readonly: ";
-    break;
-  default:;
-  };
-  parameter_string += this->varsToString();
-  if (!parameter_string.empty()) {
-    result += "(" + parameter_string + ") ";
-    return result;
-  }
-
-  // No vars: drop the trailing space when no modifier or vars were present.
-  result += " ";
-
-  return result;
-};
-
-std::string OpenACCCollapseClause::toString() {
-
-  std::string result;
-  const auto &vals = getCounts();
-  if (vals.empty()) {
-    result = "collapse ";
-    return result;
-  }
-
-  for (const auto &val : vals) {
-    result += "collapse";
-    result += "(";
-    if (isForce()) {
-      result += "force:";
-    }
-    result += val.text + ") ";
-  }
-  return result;
+template <typename T> std::string joinFragments(const NonEmptyList<T> &Values) {
+  return join(Values.values(), ", ",
+              [](const T &Value) { return Value.spelling(); });
 }
 
-std::string OpenACCAsyncClause::toString() {
-
-  std::string result = "async";
-  if (getModifier() == ACCC_ASYNC_expr && !getAsyncExpr().text.empty()) {
-    result += "(" + getAsyncExpr().text + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
+std::string printDeviceSelector(const DeviceSelector &Selector) {
+  return std::visit(
+      Overloaded{
+          [](const WildcardDevice &) { return std::string("*"); },
+          [](const ArchitectureIdentifier &Value) { return Value.spelling(); }},
+      Selector);
 }
 
-std::string OpenACCWaitDirective::expressionToString() {
-
-  std::string result;
-  const auto &expr = this->getAsyncIds();
-  if (!expr.empty()) {
-    for (auto it = expr.begin(); it != expr.end(); ++it) {
-      if (it != expr.begin()) {
-        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-      }
-      result += it->text;
-    }
-  }
-
-  return result;
-};
-
-std::string OpenACCWaitDirective::toString() {
-
-  std::string result = "wait";
-  std::string parameter_string = "";
-  if (!this->getAsyncIds().empty()) {
-    result += "(";
-    const auto &devnum = this->getDevnum();
-    if (!devnum.text.empty()) {
-      parameter_string += "devnum: " + devnum.text + ": ";
-    };
-    if (this->getQueues() == true) {
-      parameter_string += "queues: ";
-    };
-
-    parameter_string += this->expressionToString();
-    result += parameter_string + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-};
-
-std::string OpenACCDefaultAsyncClause::toString() {
-
-  std::string result = "default_async";
-  if (!getAsyncExpr().text.empty()) {
-    result += "(" + getAsyncExpr().text + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
+std::string printDeviceSelectors(const DeviceSelectorList &Selectors) {
+  return join(Selectors.values(), ", ", printDeviceSelector);
 }
 
-std::string OpenACCDeviceClause::toString() {
-
-  std::string result = "device";
-  const auto &devs = getDevices();
-  if (!devs.empty()) {
-    result += "(";
-    for (auto it = devs.begin(); it != devs.end(); ++it) {
-      result += it->text;
-      if (it + 1 != devs.end()) {
-        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-      }
-    }
-    result += ") ";
-  } else {
-    result += " ";
-  }
-  return result;
+std::string printSize(const SizeExpr &Size) {
+  return std::visit(
+      Overloaded{[](const StarSize &) { return std::string("*"); },
+                 [](const IntegerExpr &Value) { return Value.spelling(); }},
+      Size);
 }
 
-std::string OpenACCIfClause::toString() {
-
-  std::string result = "if";
-  if (!getCondition().text.empty()) {
-    result += "(" + getCondition().text + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCDeviceNumClause::toString() {
-
-  std::string result = "device_num";
-  if (!getDeviceExpr().text.empty()) {
-    result += "(" + getDeviceExpr().text + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCGangClause::toString() {
-
-  std::string result = "gang";
-  if (getArgs().empty()) {
-    result += " ";
-    return result;
-  }
-
-  std::string parameter_string;
-  const auto &arg_list = getArgs();
-  for (auto it = arg_list.begin(); it != arg_list.end(); ++it) {
-    if (it != arg_list.begin()) {
-      parameter_string += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-    }
-    switch (it->kind) {
-    case ACCC_GANG_ARG_num:
-      parameter_string += "num:" + it->value.text;
+std::string escapeCString(std::string_view Value) {
+  std::string Result;
+  for (char Ch : Value) {
+    switch (Ch) {
+    case '\\':
+      Result += "\\\\";
       break;
-    case ACCC_GANG_ARG_num_no_keyword:
-      parameter_string += it->value.text;
+    case '"':
+      Result += "\\\"";
       break;
-    case ACCC_GANG_ARG_dim:
-      parameter_string += "dim:" + it->value.text;
+    case '\n':
+      Result += "\\n";
       break;
-    case ACCC_GANG_ARG_static:
-      if (it->value.text.empty()) {
-        parameter_string += "static";
-      } else {
-        parameter_string += "static:" + it->value.text;
-      }
+    case '\r':
+      Result += "\\r";
+      break;
+    case '\t':
+      Result += "\\t";
       break;
     default:
-      parameter_string += it->value.text;
+      Result += Ch;
       break;
     }
   }
-  result += "(" + parameter_string + ") ";
-  return result;
+  return Result;
 }
 
-std::string OpenACCNumGangsClause::toString() {
+std::string printStringLiteral(const StringLiteral &Literal, Language Lang) {
+  (void)Lang;
+  return Literal.spelling();
+}
 
-  std::string result = "num_gangs";
-  const auto &vals = getNums();
-  if (!vals.empty()) {
-    result += "(";
-    for (auto it = vals.begin(); it != vals.end(); ++it) {
-      result += it->text;
-      if (it + 1 != vals.end())
-        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
+std::string printNameOrString(const NameOrString &Value, Language Lang) {
+  return std::visit(
+      Overloaded{[](const Identifier &Name) { return Name.spelling(); },
+                 [Lang](const StringLiteral &Literal) {
+                   return printStringLiteral(Literal, Lang);
+                 }},
+      Value);
+}
+
+std::string printWaitArgument(const WaitArgument &Argument) {
+  std::string Result;
+  if (Argument.deviceNumber)
+    Result = "devnum:" + Argument.deviceNumber->spelling();
+  if (Argument.queues) {
+    if (!Result.empty())
+      Result += ':';
+    if (Argument.hasQueuesKeyword || Argument.deviceNumber)
+      Result += "queues:";
+    Result += joinFragments(*Argument.queues);
+  }
+  return Result;
+}
+
+std::string reductionName(ReductionOperator Op) {
+  switch (Op) {
+  case ReductionOperator::Add:
+    return "+";
+  case ReductionOperator::Subtract:
+    return "-";
+  case ReductionOperator::Multiply:
+    return "*";
+  case ReductionOperator::Maximum:
+    return "max";
+  case ReductionOperator::Minimum:
+    return "min";
+  case ReductionOperator::BitAnd:
+    return "&";
+  case ReductionOperator::BitOr:
+    return "|";
+  case ReductionOperator::BitXor:
+    return "^";
+  case ReductionOperator::LogicalAnd:
+    return "&&";
+  case ReductionOperator::LogicalOr:
+    return "||";
+  case ReductionOperator::FortranAnd:
+    return ".and.";
+  case ReductionOperator::FortranOr:
+    return ".or.";
+  case ReductionOperator::FortranEqv:
+    return ".eqv.";
+  case ReductionOperator::FortranNeqv:
+    return ".neqv.";
+  case ReductionOperator::FortranIand:
+    return "iand";
+  case ReductionOperator::FortranIor:
+    return "ior";
+  case ReductionOperator::FortranIeor:
+    return "ieor";
+  }
+  return {};
+}
+
+template <typename Modifier> std::string modifierName(Modifier Value) {
+  if constexpr (std::is_same_v<Modifier, CopyModifier>) {
+    switch (Value) {
+    case CopyModifier::Always:
+      return "always";
+    case CopyModifier::AlwaysIn:
+      return "alwaysin";
+    case CopyModifier::AlwaysOut:
+      return "alwaysout";
+    case CopyModifier::Capture:
+      return "capture";
     }
-    result += ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCNumWorkersClause::toString() {
-
-  std::string result = "num_workers";
-  if (!getNumExpr().text.empty()) {
-    result += "(" + getNumExpr().text + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCTileClause::toString() {
-
-  std::string result = "tile";
-  const auto &sizes = getTileSizes();
-  if (!sizes.empty()) {
-    result += "(";
-    for (auto it = sizes.begin(); it != sizes.end(); ++it) {
-      result += it->text;
-      if (it + 1 != sizes.end()) {
-        result += (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-      }
+  } else if constexpr (std::is_same_v<Modifier, CopyInModifier>) {
+    switch (Value) {
+    case CopyInModifier::Always:
+      return "always";
+    case CopyInModifier::AlwaysIn:
+      return "alwaysin";
+    case CopyInModifier::Capture:
+      return "capture";
+    case CopyInModifier::ReadOnly:
+      return "readonly";
     }
-    result += ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCBindClause::toString() {
-
-  std::string result = "bind";
-  if (!getBinding().text.empty()) {
-    std::string binding = getBinding().text;
-    if (getBinding().is_string_literal) {
-      binding = "\"" + binding + "\"";
+  } else if constexpr (std::is_same_v<Modifier, CopyOutModifier>) {
+    switch (Value) {
+    case CopyOutModifier::Always:
+      return "always";
+    case CopyOutModifier::AlwaysOut:
+      return "alwaysout";
+    case CopyOutModifier::Capture:
+      return "capture";
+    case CopyOutModifier::Zero:
+      return "zero";
     }
-    result += "(" + binding + ") ";
   } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCCopyinClause::toString() {
-
-  std::string keyword = "copyin";
-  switch (getVariant()) {
-  case ACCC_DATA_COPYIN_pcopyin:
-    keyword = "pcopyin";
-    break;
-  case ACCC_DATA_COPYIN_present_or_copyin:
-    keyword = "present_or_copyin";
-    break;
-  default:
-    break;
-  }
-  std::string result = keyword;
-  if (!getVars().empty()) {
-    std::string parameter_string;
-    bool first = true;
-    for (auto mod : getModifiers()) {
-      std::string name;
-      switch (mod) {
-      case ACCC_DATA_MOD_always:
-        name = "always";
-        break;
-      case ACCC_DATA_MOD_alwaysin:
-        name = "alwaysin";
-        break;
-      case ACCC_DATA_MOD_alwaysout:
-        name = "alwaysout";
-        break;
-      case ACCC_DATA_MOD_capture:
-        name = "capture";
-        break;
-      case ACCC_DATA_MOD_readonly:
-        name = "readonly";
-        break;
-      case ACCC_DATA_MOD_zero:
-        name = "zero";
-        break;
-      default:
-        name.clear();
-      }
-      if (name.empty()) {
-        continue;
-      }
-      if (!first) {
-        parameter_string += ", ";
-      }
-      parameter_string += name;
-      first = false;
-    }
-    if (!parameter_string.empty()) {
-      parameter_string += ": ";
-    }
-    parameter_string += varsToString();
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
-  }
-
-  return result;
-};
-
-std::string OpenACCCopyoutClause::toString() {
-
-  std::string keyword = "copyout";
-  switch (getVariant()) {
-  case ACCC_DATA_COPYOUT_pcopyout:
-    keyword = "pcopyout";
-    break;
-  case ACCC_DATA_COPYOUT_present_or_copyout:
-    keyword = "present_or_copyout";
-    break;
-  default:
-    break;
-  }
-  std::string result = keyword;
-  if (!getVars().empty()) {
-    std::string parameter_string;
-    bool first = true;
-    for (auto mod : getModifiers()) {
-      std::string name;
-      switch (mod) {
-      case ACCC_DATA_MOD_always:
-        name = "always";
-        break;
-      case ACCC_DATA_MOD_alwaysin:
-        name = "alwaysin";
-        break;
-      case ACCC_DATA_MOD_alwaysout:
-        name = "alwaysout";
-        break;
-      case ACCC_DATA_MOD_capture:
-        name = "capture";
-        break;
-      case ACCC_DATA_MOD_readonly:
-        name = "readonly";
-        break;
-      case ACCC_DATA_MOD_zero:
-        name = "zero";
-        break;
-      default:
-        name.clear();
-      }
-      if (name.empty()) {
-        continue;
-      }
-      if (!first) {
-        parameter_string += ", ";
-      }
-      parameter_string += name;
-      first = false;
-    }
-    if (!parameter_string.empty()) {
-      parameter_string += ": ";
-    }
-    parameter_string += varsToString();
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
-  }
-
-  return result;
-};
-
-std::string OpenACCCreateClause::toString() {
-
-  std::string keyword = "create";
-  switch (getVariant()) {
-  case ACCC_DATA_CREATE_pcreate:
-    keyword = "pcreate";
-    break;
-  case ACCC_DATA_CREATE_present_or_create:
-    keyword = "present_or_create";
-    break;
-  default:
-    break;
-  }
-  std::string result = keyword;
-  if (!getVars().empty()) {
-    std::string parameter_string;
-    bool first = true;
-    for (auto mod : getModifiers()) {
-      std::string name;
-      switch (mod) {
-      case ACCC_DATA_MOD_always:
-        name = "always";
-        break;
-      case ACCC_DATA_MOD_alwaysin:
-        name = "alwaysin";
-        break;
-      case ACCC_DATA_MOD_alwaysout:
-        name = "alwaysout";
-        break;
-      case ACCC_DATA_MOD_capture:
-        name = "capture";
-        break;
-      case ACCC_DATA_MOD_readonly:
-        name = "readonly";
-        break;
-      case ACCC_DATA_MOD_zero:
-        name = "zero";
-        break;
-      default:
-        name.clear();
-      }
-      if (name.empty()) {
-        continue;
-      }
-      if (!first) {
-        parameter_string += ", ";
-      }
-      parameter_string += name;
-      first = false;
-    }
-    if (!parameter_string.empty()) {
-      parameter_string += ": ";
-    }
-    parameter_string += varsToString();
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
-  }
-
-  return result;
-};
-
-static std::string
-varClauseToString(const std::string &keyword,
-                  const std::vector<OpenACCExpressionItem> &vars) {
-  std::string result = keyword;
-  if (!vars.empty()) {
-    result += "(";
-    for (size_t idx = 0; idx < vars.size(); ++idx) {
-      if (idx > 0) {
-        result += (vars[idx].separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-      }
-      result += vars[idx].text;
-    }
-    result += ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCCopyClause::toString() {
-  std::string keyword = "copy";
-  switch (getVariant()) {
-  case ACCC_DATA_COPY_pcopy:
-    keyword = "pcopy";
-    break;
-  case ACCC_DATA_COPY_present_or_copy:
-    keyword = "present_or_copy";
-    break;
-  default:
-    break;
-  }
-  std::string result = keyword;
-  if (!getVars().empty()) {
-    std::string parameter_string;
-    bool first = true;
-    for (auto mod : getModifiers()) {
-      std::string name;
-      switch (mod) {
-      case ACCC_DATA_MOD_always:
-        name = "always";
-        break;
-      case ACCC_DATA_MOD_alwaysin:
-        name = "alwaysin";
-        break;
-      case ACCC_DATA_MOD_alwaysout:
-        name = "alwaysout";
-        break;
-      case ACCC_DATA_MOD_capture:
-        name = "capture";
-        break;
-      case ACCC_DATA_MOD_readonly:
-        name = "readonly";
-        break;
-      case ACCC_DATA_MOD_zero:
-        name = "zero";
-        break;
-      default:
-        name.clear();
-      }
-      if (name.empty()) {
-        continue;
-      }
-      if (!first) {
-        parameter_string += ", ";
-      }
-      parameter_string += name;
-      first = false;
-    }
-    if (!parameter_string.empty()) {
-      parameter_string += ": ";
-    }
-    parameter_string += varsToString();
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCNoCreateClause::toString() {
-  std::string result = "no_create";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCPresentClause::toString() {
-  std::string result = "present";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCLinkClause::toString() {
-  std::string result = "link";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCDeviceResidentClause::toString() {
-  std::string result = "device_resident";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCDeviceptrClause::toString() {
-  std::string result = "deviceptr";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCUseDeviceClause::toString() {
-  std::string result = "use_device";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCAttachClause::toString() {
-  std::string result = "attach";
-  if (!getVars().empty()) {
-    result += "(" + varsToString() + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
-}
-
-std::string OpenACCDeleteClause::toString() {
-  return varClauseToString("delete", getVars());
-}
-
-std::string OpenACCDetachClause::toString() {
-  return varClauseToString("detach", getVars());
-}
-
-std::string OpenACCSelfClause::toString() {
-  std::string result = "self";
-  if (!getCondition().text.empty()) {
-    result += "(" + getCondition().text + ")";
-  } else if (!getVars().empty()) {
-    result += "(" + varsToString() + ")";
-  }
-  result += " ";
-  return result;
-}
-
-std::string OpenACCFirstprivateClause::toString() {
-  return varClauseToString("firstprivate", getVars());
-}
-
-std::string OpenACCHostClause::toString() {
-  return varClauseToString("host", getVars());
-}
-
-std::string OpenACCPrivateClause::toString() {
-  return varClauseToString("private", getVars());
-}
-
-std::string OpenACCDefaultClause::toString() {
-
-  std::string result = "default";
-  std::string parameter_string;
-  OpenACCDefaultClauseKind default_kind = this->getKind();
-  switch (default_kind) {
-  case ACCC_DEFAULT_present:
-    parameter_string = "present";
-    break;
-  case ACCC_DEFAULT_none:
-    parameter_string = "none";
-    break;
-  default:
-    std::cout << "The parameter of default clause is not supported.\n";
-  };
-
-  if (parameter_string.size() > 0) {
-    result += "(" + parameter_string + ") ";
-  } else {
-    result += " ";
-  }
-
-  return result;
-};
-
-std::string OpenACCReductionClause::toString() {
-
-  std::string result = "reduction(";
-  std::string op;
-  OpenACCReductionClauseOperator reduction_operator = this->getOperator();
-  switch (reduction_operator) {
-  case ACCC_REDUCTION_add:
-    op = "+";
-    break;
-  case ACCC_REDUCTION_sub:
-    op = "-";
-    break;
-  case ACCC_REDUCTION_mul:
-    op = "*";
-    break;
-  case ACCC_REDUCTION_max:
-    op = "max";
-    break;
-  case ACCC_REDUCTION_min:
-    op = "min";
-    break;
-  case ACCC_REDUCTION_bitand:
-    op = "&";
-    break;
-  case ACCC_REDUCTION_bitor:
-    op = "|";
-    break;
-  case ACCC_REDUCTION_bitxor:
-    op = "^";
-    break;
-  case ACCC_REDUCTION_logand:
-    op = "&&";
-    break;
-  case ACCC_REDUCTION_logor:
-    op = "||";
-    break;
-  case ACCC_REDUCTION_fort_and:
-    op = ".and.";
-    break;
-  case ACCC_REDUCTION_fort_or:
-    op = ".or.";
-    break;
-  case ACCC_REDUCTION_fort_eqv:
-    op = ".eqv.";
-    break;
-  case ACCC_REDUCTION_fort_neqv:
-    op = ".neqv.";
-    break;
-  case ACCC_REDUCTION_fort_iand:
-    op = ".iand.";
-    break;
-  case ACCC_REDUCTION_fort_ior:
-    op = ".ior.";
-    break;
-  case ACCC_REDUCTION_fort_ieor:
-    op = ".ieor.";
-    break;
-  default:
-    op = "";
-  };
-
-  result += op;
-  result += " : ";
-  result += this->varsToString();
-  result += ") ";
-
-  return result;
-};
-
-std::string OpenACCVectorClause::toString() {
-
-  std::string result = "vector";
-  const auto &length = this->getLengthExpr();
-  switch (this->getModifier()) {
-  case ACCC_VECTOR_length:
-    result += "(length: " + length.text + ") ";
-    break;
-  case ACCC_VECTOR_expr_only:
-    result += "(" + length.text + ") ";
-    break;
-  default:
-    if (!length.text.empty()) {
-      result += "(" + length.text + ") ";
-    } else {
-      result += " ";
+    switch (Value) {
+    case CreateModifier::Capture:
+      return "capture";
+    case CreateModifier::Zero:
+      return "zero";
     }
   }
-
-  return result;
-};
-
-std::string OpenACCVectorLengthClause::toString() {
-
-  std::string result = "vector_length";
-  const auto &length = this->getLengthExpr();
-  if (!length.text.empty()) {
-    result += "(" + length.text + ") ";
-  } else {
-    result += " ";
-  }
-  return result;
+  return {};
 }
 
-std::string OpenACCWaitClause::toString() {
-
-  std::string result = "wait";
-  std::string parameter_string = "";
-  if (!this->getAsyncIds().empty()) {
-    result += "(";
-    const auto &devnum = this->getDevnum();
-    if (!devnum.text.empty()) {
-      parameter_string += "devnum: " + devnum.text + ": ";
-    };
-    if (this->getQueues() == true) {
-      parameter_string += "queues: ";
-    };
-
-    const auto &ids = this->getAsyncIds();
-    for (auto it = ids.begin(); it != ids.end(); ++it) {
-      parameter_string += it->text;
-      if (it + 1 != ids.end()) {
-        parameter_string +=
-            (it->separator == ACCC_CLAUSE_SEP_comma) ? ", " : " ";
-      }
-    }
-    result += parameter_string + ") ";
-  } else {
-    result += " ";
+template <typename Modifier>
+std::string printDataArguments(const std::vector<Modifier> &Modifiers,
+                               const NonEmptyList<VariableRef> &Variables) {
+  std::string Result;
+  if (!Modifiers.empty()) {
+    Result = join(Modifiers, ", ",
+                  [](Modifier Value) { return modifierName(Value); });
+    Result += ": ";
   }
-
-  return result;
-};
-
-std::string OpenACCWorkerClause::toString() {
-
-  std::string result = "worker";
-  const auto &num = this->getNumExpr();
-  switch (this->getModifier()) {
-  case ACCC_WORKER_num:
-    result += "(num: " + num.text + ") ";
-    break;
-  case ACCC_WORKER_expr_only:
-    result += "(" + num.text + ") ";
-    break;
-  default:
-    if (!num.text.empty()) {
-      result += "(" + num.text + ") ";
-    } else {
-      result += " ";
-    }
-  }
-
-  return result;
-};
-
-std::string OpenACCIndirectClause::toString() {
-  std::string result = "indirect";
-  if (isPresent()) {
-    if (!getValue().text.empty()) {
-      std::string val = getValue().text;
-      if (getValue().is_string_literal) {
-        val = "\"" + val +
-              "\""; // rough handling, relying on stored text being clean
-      }
-      result += "(" + val + ") ";
-    } else {
-      result += " ";
-    }
-  }
-  return result;
+  Result += joinFragments(Variables);
+  return Result;
 }
+
+std::string printGangArgument(const GangArgument &Argument) {
+  return std::visit(Overloaded{[](const PositionalGangArgument &Value) {
+                                 return Value.value.spelling();
+                               },
+                               [](const NumGangArgument &Value) {
+                                 return "num:" + Value.value.spelling();
+                               },
+                               [](const DimGangArgument &Value) {
+                                 return "dim:" + Value.value.spelling();
+                               },
+                               [](const StaticGangArgument &Value) {
+                                 return "static:" + printSize(Value.value);
+                               }},
+                    Argument);
+}
+
+std::string printClause(const Clause &Value, Language Lang) {
+  return std::visit(
+      Overloaded{
+          [](const FlagClause &C) { return flagName(C.kind); },
+          [](const AsyncClause &C) {
+            return C.argument ? "async(" + C.argument->spelling() + ")"
+                              : std::string("async");
+          },
+          [Lang](const BindClause &C) {
+            return "bind(" + printNameOrString(C.target, Lang) + ")";
+          },
+          [](const CollapseClause &C) {
+            return "collapse(" + std::string(C.force ? "force: " : "") +
+                   C.count.spelling() + ")";
+          },
+          [](const CopyClause &C) {
+            return "copy(" + printDataArguments(C.modifiers, C.variables) + ")";
+          },
+          [](const CopyInClause &C) {
+            return "copyin(" + printDataArguments(C.modifiers, C.variables) +
+                   ")";
+          },
+          [](const CopyOutClause &C) {
+            return "copyout(" + printDataArguments(C.modifiers, C.variables) +
+                   ")";
+          },
+          [](const CreateClause &C) {
+            return "create(" + printDataArguments(C.modifiers, C.variables) +
+                   ")";
+          },
+          [](const DefaultClause &C) {
+            return std::string("default(") +
+                   (C.value == DefaultKind::None ? "none" : "present") + ")";
+          },
+          [](const DefaultAsyncClause &C) {
+            return "default_async(" + C.argument.spelling() + ")";
+          },
+          [](const DeviceNumClause &C) {
+            return "device_num(" + C.value.spelling() + ")";
+          },
+          [](const DeviceTypeClause &C) {
+            return "device_type(" + printDeviceSelectors(C.selectors) + ")";
+          },
+          [](const GangClause &C) {
+            if (C.arguments.empty())
+              return std::string("gang");
+            return "gang(" + join(C.arguments, ", ", printGangArgument) + ")";
+          },
+          [](const IfClause &C) {
+            return "if(" + C.condition.spelling() + ")";
+          },
+          [](const NumGangsClause &C) {
+            return "num_gangs(" + joinFragments(C.values) + ")";
+          },
+          [](const NumWorkersClause &C) {
+            return "num_workers(" + C.value.spelling() + ")";
+          },
+          [](const ReductionClause &C) {
+            return "reduction(" + reductionName(C.op) + ": " +
+                   joinFragments(C.variables) + ")";
+          },
+          [](const SelfConditionClause &C) {
+            return C.condition ? "self(" + C.condition->spelling() + ")"
+                               : std::string("self");
+          },
+          [](const TileClause &C) {
+            return "tile(" + join(C.sizes.values(), ", ", printSize) + ")";
+          },
+          [](const VarListClause &C) {
+            return varListName(C.kind) + "(" + joinFragments(C.variables) + ")";
+          },
+          [](const VectorClause &C) {
+            if (!C.argument)
+              return std::string("vector");
+            return "vector(" +
+                   std::string(C.argument->hasLengthKeyword ? "length: " : "") +
+                   C.argument->value.spelling() + ")";
+          },
+          [](const VectorLengthClause &C) {
+            return "vector_length(" + C.value.spelling() + ")";
+          },
+          [](const WaitClause &C) {
+            return C.argument ? "wait(" + printWaitArgument(*C.argument) + ")"
+                              : std::string("wait");
+          },
+          [](const WorkerClause &C) {
+            if (!C.argument)
+              return std::string("worker");
+            return "worker(" +
+                   std::string(C.argument->hasNumKeyword ? "num: " : "") +
+                   C.argument->value.spelling() + ")";
+          }},
+      Value);
+}
+
+void appendClause(std::string &Result, const std::string &Clause) {
+  if (Clause.empty())
+    return;
+  Result += ' ';
+  Result += Clause;
+}
+
+std::string printGeneral(const GeneralDirective &Directive, Language Lang) {
+  std::string Result = directiveName(Directive.kind);
+  if (Directive.routineName)
+    Result += '(' + Directive.routineName->spelling() + ')';
+  if (Directive.waitArgument)
+    Result += '(' + printWaitArgument(*Directive.waitArgument) + ')';
+
+  for (const Clause &C : Directive.defaultClauses)
+    appendClause(Result, printClause(C, Lang));
+  for (const DeviceClauseGroup &Group : Directive.deviceGroups) {
+    appendClause(Result,
+                 "device_type(" + printDeviceSelectors(Group.selectors) + ")");
+    for (const Clause &C : Group.clauses)
+      appendClause(Result, printClause(C, Lang));
+  }
+  return Result;
+}
+
+std::string printBody(const Directive &Value) {
+  return std::visit(Overloaded{[&Value](const GeneralDirective &D) {
+                                 return printGeneral(D, Value.language());
+                               },
+                               [](const CacheDirective &D) {
+                                 return "cache(" +
+                                        std::string(D.readOnly ? "readonly: "
+                                                               : "") +
+                                        joinFragments(D.variables) + ")";
+                               },
+                               [](const EndDirective &D) {
+                                 return "end " + endDirectiveName(D.kind);
+                               }},
+                    Value.payload());
+}
+
+InputForm defaultForm(Language Lang) {
+  return Lang == Language::Fortran ? InputForm::FortranFree
+                                   : InputForm::CPragma;
+}
+
+} // namespace
+
+std::string formatDirective(const Directive &Value, PrintOptions Options) {
+  std::string Body = printBody(Value);
+  InputForm Form = Options.outputForm.value_or(defaultForm(Value.language()));
+  switch (Form) {
+  case InputForm::DirectiveBody:
+    return Body;
+  case InputForm::CPragma:
+    return "#pragma acc " + Body;
+  case InputForm::CPragmaOperator:
+    return "_Pragma(\"acc " + escapeCString(Body) + "\")";
+  case InputForm::FortranFree:
+  case InputForm::FortranFixed:
+    return "!$acc " + Body;
+  }
+  return {};
+}
+
+} // namespace openacc

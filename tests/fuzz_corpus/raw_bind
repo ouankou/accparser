@@ -1,0 +1,1 @@
+#pragma acc routine(foo) bind(R"(gpu"name)") seq

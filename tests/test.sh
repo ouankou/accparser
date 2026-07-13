@@ -1,10 +1,9 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 INPUT=$1
 OUTPUT=${INPUT##*/}.output
 REFERENCE=$2
-./acc_tester.out ${INPUT}
-diff ${OUTPUT} ${REFERENCE}
-
+./acc_tester.out --allow-invalid "${INPUT}"
+diff "${OUTPUT}" "${REFERENCE}"

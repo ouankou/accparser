@@ -1,0 +1,1 @@
+#pragma acc wait(devnum:f(a,b):queues:q1,q2) async(3) if(ready)

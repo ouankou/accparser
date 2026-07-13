@@ -1,34 +1,23 @@
 #include "OpenACCParser.h"
-#include <cassert>
+
 #include <iostream>
 
 int main() {
-  // C-prefixed pragma
-  std::string cpragma = "#pragma acc parallel";
-  OpenACCDirective *d1 = parseOpenACC(cpragma);
-  if (d1 == nullptr) {
-    std::cerr << "parseOpenACC returned NULL for C pragma\n";
-    return 2;
-  }
-  if (d1->getBaseLang() != ACC_Lang_C) {
-    std::cerr << "Expected ACC_Lang_C but got " << d1->getBaseLang() << "\n";
-    return 3;
-  }
+  openacc::ParseResult C = openacc::parseDirective(
+      "#pragma acc parallel",
+      {openacc::Language::C, openacc::InputForm::CPragma});
+  openacc::ParseResult Fortran = openacc::parseDirective(
+      "!$ACC PARALLEL",
+      {openacc::Language::Fortran, openacc::InputForm::FortranFree});
 
-  // Fortran-prefixed pragma
-  std::string fpragma = "!$acc parallel";
-  OpenACCDirective *d2 = parseOpenACC(fpragma);
-  if (d2 == nullptr) {
-    std::cerr << "parseOpenACC returned NULL for Fortran pragma\n";
-    return 4;
+  if (!C.succeeded() || C.directive->language() != openacc::Language::C) {
+    std::cerr << "C language was not retained\n";
+    return 1;
   }
-  if (d2->getBaseLang() != ACC_Lang_Fortran) {
-    std::cerr << "Expected ACC_Lang_Fortran but got " << d2->getBaseLang() << "\n";
-    return 5;
+  if (!Fortran.succeeded() ||
+      Fortran.directive->language() != openacc::Language::Fortran) {
+    std::cerr << "Fortran language was not retained\n";
+    return 1;
   }
-
-  delete d1;
-  delete d2;
-  std::cout << "lang_flag_test: OK\n";
   return 0;
 }

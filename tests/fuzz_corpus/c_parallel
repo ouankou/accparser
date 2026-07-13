@@ -1,0 +1,1 @@
+#pragma acc parallel loop gang(num:n, static:*) vector(length:32) copyin(readonly:a[0:n]) reduction(+:sum)
