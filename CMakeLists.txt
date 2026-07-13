@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION 3.20)
-project(accparser)
+project(accparser VERSION 0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,9 +11,21 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build (Debug, Release, RelWithDebInfo, MinSizeRel)" FORCE)
 endif()
 
-set(ACCPARSER_VERSION_MAJOR 0)
-set(ACCPARSER_VERSION_MINOR 1)
-set(ACCPARSER_VERSION ${ACCPARSER_VERSION_MAJOR}.${ACCPARSER_VERSION_MINOR})
+option(ACCPARSER_ENABLE_ASAN_UBSAN
+       "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(ACCPARSER_ENABLE_TSAN "Build with ThreadSanitizer" OFF)
+option(ACCPARSER_BUILD_FUZZER "Build the libFuzzer parser target" OFF)
+
+if(ACCPARSER_ENABLE_ASAN_UBSAN AND ACCPARSER_ENABLE_TSAN)
+    message(FATAL_ERROR "ASan/UBSan and TSan cannot be enabled together")
+endif()
+if(ACCPARSER_ENABLE_ASAN_UBSAN)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+elseif(ACCPARSER_ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+endif()
 
 find_program(ANTLR4_EXECUTABLE NAMES antlr4)
 if(NOT ANTLR4_EXECUTABLE)
@@ -84,10 +96,8 @@ install(TARGETS accparser
 # OpenACCParser.h: Standalone parser interface (no ANTLR dependency)
 # OpenACCIR.h: AST node classes
 # OpenACCKinds.h: Enum definitions
-# OpenACCASTConstructor.h: ANTLR implementation (optional, for advanced use)
 install(FILES
         src/OpenACCParser.h
         src/OpenACCIR.h
         src/OpenACCKinds.h
-        src/OpenACCASTConstructor.h
         DESTINATION include)

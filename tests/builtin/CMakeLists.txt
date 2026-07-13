@@ -54,11 +54,14 @@ set(TEST_FILES
 
 add_dependencies(acc_base_test acc_tester.out)
 
-foreach(file_to_test ${TEST_FILES})
-    add_test(
-    NAME ${file_to_test}
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/test.sh ${CMAKE_CURRENT_SOURCE_DIR}/${file_to_test} ${CMAKE_CURRENT_SOURCE_DIR}/reference/ref_${file_to_test}
+foreach(TEST_FILE IN LISTS TEST_FILES)
+  add_test(
+    NAME ${TEST_FILE}
+    COMMAND "${CMAKE_COMMAND}" -E env
+            "LD_LIBRARY_PATH=$<TARGET_FILE_DIR:accparser>:$ENV{LD_LIBRARY_PATH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/test.sh"
+            "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/reference/ref_${TEST_FILE}"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
-    )
+  )
 endforeach()
-

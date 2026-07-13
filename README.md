@@ -1,114 +1,78 @@
 # accparser
-accparser (ACCP): a standalone OpenACC parser based on ANTLR 4.
-It supports both C and Fortran.
 
+`accparser` is a standalone OpenACC 3.4 directive parser for C, C++, and
+Fortran. It separates the directive envelope and OpenACC structure from opaque
+host-language expressions, then produces an owning, value-semantic typed AST.
+Invalid input produces diagnostics and never produces a partial AST.
 
-## Prerequisite
+## Prerequisites
 
-accparser requires ANTLR 4 and its C++ runtime, which are available on Ubuntu 20.04 or later.
-For other systems, they may need to be manually built.
+The build requires CMake 3.20 or later, ANTLR 4, and the ANTLR 4 C++ runtime.
+On Ubuntu or Debian:
 
 ```bash
 sudo apt update
-sudo apt install -y \
-    antlr4 \
-    libantlr4-runtime-dev \
-    build-essential \
-    g++ \
-    cmake
+sudo apt install -y antlr4 libantlr4-runtime-dev build-essential cmake
 ```
 
-`clang`/`clang++` and `gcc`/`g++` are both fine.
-
-## Build
+## Build and test
 
 ```bash
-mkdir build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
 cd build
-cmake ..
-make
+ctest --output-on-failure
 ```
 
-It will produce a library `libaccparser.so` and an executable `acc_demo.out`.
+The regression suite includes focused positive and negative parser tests,
+concurrent parsing, semantic parse-print-parse checks, and pragmas extracted
+from OpenACCV-V.
 
-## Header Organization
-
-accparser provides two levels of headers for different use cases:
-
-### For Standard Usage (Recommended)
-```cpp
-#include "OpenACCParser.h"  // Standalone parser interface
-```
-- No ANTLR dependencies required
-- Suitable for external parser implementations
-- Provides `parseOpenACC()` and C API functions
-
-### For ANTLR-based Development
-```cpp
-#include "OpenACCASTConstructor.h"  // ANTLR implementation details
-```
-- Requires ANTLR4 runtime
-- For extending the ANTLR-based parser
-- Includes `OpenACCParser.h` transitively
-
-### For AST Manipulation Only
-```cpp
-#include "OpenACCIR.h"  // AST node classes
-```
-- No parser dependencies
-- For working with existing AST structures
-
-This separation allows external projects to provide alternative parser implementations while reusing the OpenACC IR classes.
-
-## Run
-
-Given a test file `foo.txt` with the following content to try accparser.
-
-Input:
-
-```c
-#pragma acc parallel private(a, b, c)
-```
+Optional hardening configurations are available:
 
 ```bash
-./acc_demo.out ./foo.txt
-```
-The output includes the OpenACC source code, recognized tokens, parse tree, and the OpenACC code unparsed from the generated OpenACC IR.
-
-Output:
-
-```bash
-======================================
-Line: 1
-GIVEN INPUT: #pragma acc parallel private(a, b, c)
-======================================
-TOKEN : TOKEN_STRING
-ACC : "acc"
-PARALLEL : "parallel"
-PRIVATE : "private"
-LEFT_PAREN : "("
-EXPR : "a"
-EXPR : "b"
-EXPR : "c"
-RIGHT_PAREN : ")"
-EOF : "<EOF>"
-======================================
-PARSE TREE:
-(accparallelprivate(abc)<EOF> acc 
-        (parallelprivate(abc) 
-            (parallelprivate(abc) parallel 
-                (private(abc) 
-                    (private(abc) 
-                        (private(abc) private ( 
-                            (abc 
-                                (a a) 
-                                (b b) 
-                                (c c)) )))))) <EOF>)
-======================================
-GENERATED OUTPUT: #pragma acc parallel private (a, b, c)
-======================================
+cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug \
+  -DACCPARSER_ENABLE_ASAN_UBSAN=ON
+cmake -S . -B build-tsan -DCMAKE_BUILD_TYPE=Debug \
+  -DACCPARSER_ENABLE_TSAN=ON
 ```
 
-At each line of the parse tree section, the output follows the format `(root child_1 child_2 ... child_n)`.
-For example, the first line shows that the root is `accparallelprivate(abc)`. Its children include `acc` and `parallelprivate(abc)`.
-The latter has its own children that are listed at other lines.
+With Clang, `-DACCPARSER_BUILD_FUZZER=ON` also builds `parser_fuzz`. A seed
+corpus is provided in `tests/fuzz_corpus`.
+
+## Public API
+
+Include `OpenACCParser.h`; public headers do not expose generated ANTLR types.
+The caller specifies the base language and source form explicitly:
+
+```cpp
+#include "OpenACCParser.h"
+
+openacc::ParseResult result = openacc::parseDirective(
+    "#pragma acc parallel loop gang vector private(a)",
+    {openacc::Language::Cxx, openacc::InputForm::CPragma});
+
+if (!result.succeeded()) {
+  for (const openacc::Diagnostic &diagnostic : result.diagnostics) {
+    // diagnostic.code, diagnostic.message, and diagnostic.range are available.
+  }
+  return;
+}
+
+std::string canonical = openacc::formatDirective(*result.directive);
+```
+
+Supported input forms are a directive body, a C/C++ `#pragma`, a C/C++
+`_Pragma` operator, and free- or fixed-form Fortran sentinels. The formatter can
+emit any selected envelope through `openacc::PrintOptions`; by default it emits
+`#pragma` for C/C++ and a free-form sentinel for Fortran.
+
+The AST owns its data and uses clause-specific types. For example, `copyin`,
+`copyout`, and `create` have distinct modifier enums, device-specific clauses
+are partitioned into explicit groups, lists are nonempty by construction, and
+host fragments are distinguished as conditions, integer expressions, variable
+references, routine names, and other semantic categories.
+
+`parseOpenACC(std::string)` remains as a deprecated transition wrapper. New
+code should use `openacc::parseDirective`, which is reentrant, has no global
+merge mode, and returns structured diagnostics.

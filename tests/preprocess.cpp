@@ -1,65 +1,189 @@
-#include <fstream>
-#include <iostream>
-#include <regex>
+//===----------------------------------------------------------------------===//
+//
+// Part of accparser, under the BSD 3-Clause License.
+// See LICENSE for license information.
+// SPDX-License-Identifier: BSD-3-Clause
+//
+//===----------------------------------------------------------------------===//
 
-std::vector<std::pair<std::string, int>> preProcess(std::ifstream &);
+#include "preprocess.h"
 
-std::vector<std::pair<std::string, int>>
-preProcess(std::ifstream &input_file) {
+#include <algorithm>
+#include <cctype>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
-  std::string input_pragma;
-  int line_no = 0;
-  std::vector<std::pair<std::string, int>> acc_pragmas;
+namespace {
 
-  char current_char = input_file.peek();
-  std::string current_line;
-  std::regex c_regex(
-      "^([[:blank:]]*#pragma)([[:blank:]]+)(acc)[[:blank:]]+(.*)");
-  std::regex fortran_regex(
-      "^([[:blank:]]*[!c*][$][Aa][Cc][Cc])[[:blank:]]+(.*)");
-  std::regex comment_regex("[/][*]([^*]|[*][^/])*[*][/]");
-  std::regex continue_regex("([\\\\]+[[:blank:]]*$)");
+std::size_t firstNonblank(std::string_view Line) {
+  std::size_t Offset = 0;
+  while (Offset < Line.size() && (Line[Offset] == ' ' || Line[Offset] == '\t'))
+    ++Offset;
+  return Offset;
+}
 
-  while (!input_file.eof()) {
-    line_no += 1;
-    int step = 0;
-    switch (current_char) {
-    case '\n':
-      input_file.seekg(1, std::ios_base::cur);
-      break;
-    default:
-      std::getline(input_file, current_line);
-      // remove the inline comments
-      current_line = std::regex_replace(current_line, comment_regex, "");
-      input_pragma = "";
-      if (std::regex_match(current_line, c_regex) ||
-          std::regex_match(current_line, fortran_regex)) {
-        // combine continuous lines if necessary
-        while (std::regex_search(current_line, continue_regex)) {
-          // remove the slash part at the end
-          current_line = std::regex_replace(current_line, continue_regex, "");
-          // add the current line to the pragma string
-          input_pragma += current_line;
-          // get the next line
-          std::getline(input_file, current_line);
-          // remove the inline comments of next line
-          current_line = std::regex_replace(current_line, comment_regex, "");
-          step += 1;
-        };
-        input_pragma += current_line;
-        if (std::regex_match(current_line, fortran_regex)) {
-          std::locale loc;
-          for (unsigned int i = 0; i < input_pragma.size(); i++) {
-            input_pragma[i] = std::tolower(input_pragma[i], loc);
-          }
+bool equalsIgnoringCase(std::string_view LHS, std::string_view RHS) {
+  if (LHS.size() != RHS.size())
+    return false;
+  for (std::size_t I = 0; I < LHS.size(); ++I)
+    if (std::tolower(static_cast<unsigned char>(LHS[I])) !=
+        std::tolower(static_cast<unsigned char>(RHS[I])))
+      return false;
+  return true;
+}
+
+bool isCPragma(std::string_view Line) {
+  std::size_t Offset = firstNonblank(Line);
+  if (Offset == Line.size() || Line[Offset] != '#')
+    return false;
+  ++Offset;
+  Offset = firstNonblank(Line.substr(Offset)) + Offset;
+  if (Line.substr(Offset, 6) != "pragma")
+    return false;
+  Offset += 6;
+  if (Offset == Line.size() ||
+      !std::isspace(static_cast<unsigned char>(Line[Offset])))
+    return false;
+  Offset += firstNonblank(Line.substr(Offset));
+  if (Line.substr(Offset, 3) != "acc")
+    return false;
+  Offset += 3;
+  return Offset == Line.size() ||
+         std::isspace(static_cast<unsigned char>(Line[Offset]));
+}
+
+bool hasFortranSentinel(std::string_view Line, std::size_t Offset, bool Fixed) {
+  if (Offset + 5 > Line.size())
+    return false;
+  char Sentinel =
+      static_cast<char>(std::tolower(static_cast<unsigned char>(Line[Offset])));
+  if ((!Fixed && Sentinel != '!') ||
+      (Fixed && Sentinel != '!' && Sentinel != 'c' && Sentinel != '*'))
+    return false;
+  return Line[Offset + 1] == '$' &&
+         equalsIgnoringCase(Line.substr(Offset + 2, 3), "acc");
+}
+
+bool isFortranFreeDirective(std::string_view Line) {
+  std::size_t Offset = firstNonblank(Line);
+  if (!hasFortranSentinel(Line, Offset, false))
+    return false;
+  Offset += 5;
+  return Offset == Line.size() ||
+         std::isspace(static_cast<unsigned char>(Line[Offset]));
+}
+
+bool isFortranFixedInitial(std::string_view Line) {
+  if (!hasFortranSentinel(Line, 0, true))
+    return false;
+  return Line.size() == 5 || Line[5] == ' ' || Line[5] == '0';
+}
+
+bool isFortranFixedContinuation(std::string_view Line) {
+  return hasFortranSentinel(Line, 0, true) && Line.size() > 5 &&
+         Line[5] != ' ' && Line[5] != '0';
+}
+
+bool isIgnoredFortranSentinelComment(std::string_view Line) {
+  std::size_t Offset = firstNonblank(Line);
+  if (!hasFortranSentinel(Line, Offset, false))
+    return false;
+  Offset += 5;
+  Offset += firstNonblank(Line.substr(Offset));
+  return Offset < Line.size() && Line[Offset] == '!';
+}
+
+bool cContinues(std::string_view Line) {
+  if (!Line.empty() && Line.back() == '\\')
+    return true;
+  return Line.size() >= 2 && Line[Line.size() - 2] == '\\' &&
+         Line.back() == '\r';
+}
+
+bool fortranContinues(std::string_view Line) {
+  std::size_t Begin = firstNonblank(Line);
+  Begin = std::min(Begin + 5, Line.size());
+  char Quote = 0;
+  std::size_t End = Line.size();
+  for (std::size_t I = Begin; I < Line.size(); ++I) {
+    char Ch = Line[I];
+    if (Quote != 0) {
+      if (Ch == Quote) {
+        if (I + 1 < Line.size() && Line[I + 1] == Quote) {
+          ++I;
+          continue;
         }
-        acc_pragmas.push_back({input_pragma, line_no});
-        line_no += step;
-        step = 0;
+        Quote = 0;
       }
-    };
-    current_char = input_file.peek();
-  };
+    } else if (Ch == '\'' || Ch == '"') {
+      Quote = Ch;
+    } else if (Ch == '!') {
+      End = I;
+      break;
+    }
+  }
+  while (End > Begin && std::isspace(static_cast<unsigned char>(Line[End - 1])))
+    --End;
+  return End > Begin && Line[End - 1] == '&';
+}
 
-  return acc_pragmas;
+} // namespace
+
+std::vector<PreprocessedDirective> preProcess(std::istream &InputFile) {
+  std::vector<std::string> Lines;
+  std::string Line;
+  while (std::getline(InputFile, Line))
+    Lines.push_back(std::move(Line));
+
+  std::vector<PreprocessedDirective> Pragmas;
+  for (std::size_t I = 0; I < Lines.size(); ++I) {
+    Line = Lines[I];
+    bool IsC = isCPragma(Line);
+    bool IsFortranFree = isFortranFreeDirective(Line);
+    bool IsFortranFixed = isFortranFixedInitial(Line);
+    if (!IsC && !IsFortranFree && !IsFortranFixed)
+      continue;
+    if (IsFortranFree && isIgnoredFortranSentinelComment(Line))
+      continue;
+
+    int StartLine = static_cast<int>(I + 1);
+    std::string Directive = Line;
+    if (IsC) {
+      while (cContinues(Lines[I]) && I + 1 < Lines.size()) {
+        Directive += '\n';
+        Directive += Lines[++I];
+      }
+      Pragmas.push_back(
+          {std::move(Directive), StartLine, PreprocessedForm::CPragma});
+      continue;
+    }
+
+    bool UseFixedForm =
+        IsFortranFixed &&
+        (!IsFortranFree || (!fortranContinues(Line) && I + 1 < Lines.size() &&
+                            isFortranFixedContinuation(Lines[I + 1])));
+    if (UseFixedForm) {
+      while (I + 1 < Lines.size() && isFortranFixedContinuation(Lines[I + 1])) {
+        Directive += '\n';
+        Directive += Lines[++I];
+      }
+      Pragmas.push_back(
+          {std::move(Directive), StartLine, PreprocessedForm::FortranFixed});
+      continue;
+    }
+
+    bool NeedsContinuation = fortranContinues(Line);
+    while (NeedsContinuation && I + 1 < Lines.size()) {
+      Line = Lines[++I];
+      Directive += '\n';
+      Directive += Line;
+      if (!isIgnoredFortranSentinelComment(Line))
+        NeedsContinuation = fortranContinues(Line);
+    }
+    Pragmas.push_back(
+        {std::move(Directive), StartLine, PreprocessedForm::FortranFree});
+  }
+  return Pragmas;
 }

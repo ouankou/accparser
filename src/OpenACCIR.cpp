@@ -1,1700 +1,290 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of accparser, under the BSD 3-Clause License.
+// See LICENSE for license information.
+// SPDX-License-Identifier: BSD-3-Clause
+//
+//===----------------------------------------------------------------------===//
+
 #include "OpenACCIR.h"
-#include <algorithm>
-#include <cstdarg>
+#include "OpenACCParser.h"
 
-// Initialize static flag - disable merging by default to preserve clause
-// occurrences and ordering.
-bool OpenACCDirective::enable_clause_merging = false;
+#include <type_traits>
 
-OpenACCDirective::~OpenACCDirective() {
-  std::unordered_set<OpenACCClause *> unique_clauses;
-  for (const auto &entry : clauses) {
-    for (auto *clause : entry.second) {
-      unique_clauses.insert(clause);
-    }
-  }
-  for (auto *clause : clauses_in_original_order) {
-    unique_clauses.insert(clause);
-  }
-  for (auto *clause : unique_clauses) {
-    delete clause;
-  }
-}
+namespace openacc {
+namespace {
 
-OpenACCEndDirective::~OpenACCEndDirective() {
-  delete paired_directive;
-  paired_directive = nullptr;
-}
-
-void OpenACCDataClause::addModifier(OpenACCDataClauseModifierKind modifier) {
-  if (modifier == ACCC_DATA_MOD_unknown) {
-    return;
-  }
-  for (const auto &existing : modifiers) {
-    if (existing == modifier) {
-      return;
-    }
-  }
-  modifiers.push_back(modifier);
-}
-
-void OpenACCClause::addLangExpr(const OpenACCExpressionItem &expression,
-                                int line, int col) {
-  if (isClauseMergingEnabled()) {
-    for (const auto &prev : expressions) {
-      if (prev.text == expression.text) {
-        return;
-      }
-    }
-  }
-  expressions.push_back(expression);
-  locations.push_back(ACC_SourceLocation(line, col));
+template <class... Ts> struct Overloaded : Ts... {
+  using Ts::operator()...;
 };
+template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
 
-/**
- *
- * @param kind
- * @param ..., parameters for the clause, the number of max number of parameters
- * is determined by the kind since each clause expects a fixed set of
- * parameters.
- * @return
- */
-OpenACCClause *OpenACCDirective::addOpenACCClause(int k, ...) {
-
-  OpenACCClauseKind kind = (OpenACCClauseKind)k;
-  std::vector<OpenACCClause *> *current_clauses = getClauses(kind);
-  va_list args;
-  va_start(args, k);
-  OpenACCClause *new_clause = nullptr;
-
-  switch (kind) {
-  case ACCC_auto:
-  case ACCC_capture:
-  case ACCC_finalize:
-  case ACCC_if_present:
-  case ACCC_independent:
-  case ACCC_nohost:
-  case ACCC_read:
-  case ACCC_seq:
-  case ACCC_update:
-  case ACCC_write: {
-    if (current_clauses->empty()) {
-      new_clause = new OpenACCClause(kind);
-      current_clauses->push_back(new_clause);
-    } else {
-      if (kind == ACCC_if) {
-        std::cerr << "Cannot have two if clauses for the directive " << kind
-                  << ", ignored\n";
-      } else if (enable_clause_merging) {
-        /* we can have multiple clause and we merge them together now, thus we
-         * return the object that is already created */
-        new_clause = current_clauses->at(0);
-      } else {
-        /* merging is disabled - create a new clause instance */
-        new_clause = new OpenACCClause(kind);
-        current_clauses->push_back(new_clause);
-      }
-    }
-    break;
+ClauseKind getFlagClauseKind(FlagClauseKind Kind) {
+  switch (Kind) {
+  case FlagClauseKind::Auto:
+    return ClauseKind::Auto;
+  case FlagClauseKind::Capture:
+    return ClauseKind::Capture;
+  case FlagClauseKind::Finalize:
+    return ClauseKind::Finalize;
+  case FlagClauseKind::IfPresent:
+    return ClauseKind::IfPresent;
+  case FlagClauseKind::Independent:
+    return ClauseKind::Independent;
+  case FlagClauseKind::NoHost:
+    return ClauseKind::NoHost;
+  case FlagClauseKind::Read:
+    return ClauseKind::Read;
+  case FlagClauseKind::Seq:
+    return ClauseKind::Seq;
+  case FlagClauseKind::Update:
+    return ClauseKind::Update;
+  case FlagClauseKind::Write:
+    return ClauseKind::Write;
   }
-  case ACCC_device_type: {
-    if (current_clauses->empty() || !enable_clause_merging) {
-      new_clause = OpenACCDeviceTypeClause::addClause(this);
-      current_clauses->push_back(new_clause);
-    } else {
-      new_clause = current_clauses->at(0);
-    }
-    break;
-  }
-  case ACCC_gang: {
-    if (this->getKind() == ACCD_routine) {
-      if (current_clauses->empty()) {
-        new_clause = new OpenACCGangClause();
-        current_clauses->push_back(new_clause);
-      } else {
-        /* we can have multiple clause and we merge them together now, thus we
-         * return the object that is already created */
-        new_clause = current_clauses->at(0);
-      }
-      break;
-    } else {
-      if (current_clauses->empty()) {
-        new_clause = new OpenACCGangClause();
-        current_clauses->push_back(new_clause);
-      } else {
-        new_clause = new OpenACCGangClause();
-        current_clauses->push_back(new_clause);
-      }
-      break;
-    }
-  }
-
-  case ACCC_self: {
-    new_clause = OpenACCSelfClause::addClause(this);
-    break;
-  }
-  case ACCC_async:
-    new_clause = OpenACCAsyncClause::addClause(this);
-    break;
-  case ACCC_delete: {
-    new_clause = OpenACCDeleteClause::addClause(this);
-    break;
-  }
-  case ACCC_detach: {
-    new_clause = OpenACCDetachClause::addClause(this);
-    break;
-  }
-  case ACCC_collapse: {
-    new_clause = OpenACCCollapseClause::addClause(this);
-    break;
-  }
-  case ACCC_attach: {
-    new_clause = OpenACCAttachClause::addClause(this);
-    break;
-  }
-  case ACCC_copy: {
-    new_clause = OpenACCCopyClause::addClause(this);
-    break;
-  }
-  case ACCC_device: {
-    new_clause = OpenACCDeviceClause::addClause(this);
-    break;
-  }
-  case ACCC_device_resident: {
-    new_clause = OpenACCDeviceResidentClause::addClause(this);
-    break;
-  }
-  case ACCC_deviceptr: {
-    new_clause = OpenACCDeviceptrClause::addClause(this);
-    break;
-  }
-  case ACCC_default_async: {
-    new_clause = OpenACCDefaultAsyncClause::addClause(this);
-    break;
-  }
-  case ACCC_if: {
-    new_clause = OpenACCIfClause::addClause(this);
-    break;
-  }
-  case ACCC_firstprivate: {
-    new_clause = OpenACCFirstprivateClause::addClause(this);
-    break;
-  }
-  case ACCC_num_workers: {
-    new_clause = OpenACCNumWorkersClause::addClause(this);
-    break;
-  }
-  case ACCC_no_create: {
-    new_clause = OpenACCNoCreateClause::addClause(this);
-    break;
-  }
-  case ACCC_device_num: {
-    new_clause = OpenACCDeviceNumClause::addClause(this);
-    break;
-  }
-  case ACCC_present: {
-    new_clause = OpenACCPresentClause::addClause(this);
-    break;
-  }
-  case ACCC_private: {
-    new_clause = OpenACCPrivateClause::addClause(this);
-    break;
-  }
-  case ACCC_num_gangs: {
-    new_clause = OpenACCNumGangsClause::addClause(this);
-    break;
-  }
-  case ACCC_indirect: {
-    new_clause = OpenACCIndirectClause::addClause(this);
-    break;
-  }
-  case ACCC_link: {
-    new_clause = OpenACCLinkClause::addClause(this);
-    break;
-  }
-  case ACCC_host: {
-    new_clause = OpenACCHostClause::addClause(this);
-    break;
-  }
-  case ACCC_tile: {
-    new_clause = OpenACCTileClause::addClause(this);
-    break;
-  }
-  case ACCC_bind: {
-    new_clause = OpenACCBindClause::addClause(this);
-    break;
-  }
-  case ACCC_copyin: {
-    new_clause = OpenACCCopyinClause::addClause(this);
-    break;
-  }
-  case ACCC_copyout: {
-    new_clause = OpenACCCopyoutClause::addClause(this);
-    break;
-  }
-  case ACCC_create: {
-    new_clause = OpenACCCreateClause::addClause(this);
-    break;
-  }
-  case ACCC_default: {
-    new_clause = OpenACCDefaultClause::addClause(this);
-    break;
-  }
-  case ACCC_reduction: {
-    new_clause = OpenACCReductionClause::addClause(this);
-    break;
-  }
-  case ACCC_use_device: {
-    new_clause = OpenACCUseDeviceClause::addClause(this);
-    break;
-  }
-  case ACCC_vector: {
-    new_clause = OpenACCVectorClause::addClause(this);
-    break;
-  }
-  case ACCC_vector_length: {
-    new_clause = OpenACCVectorLengthClause::addClause(this);
-    break;
-  }
-  case ACCC_wait: {
-    new_clause = OpenACCWaitClause::addClause(this);
-    break;
-  }
-  case ACCC_worker: {
-    new_clause = OpenACCWorkerClause::addClause(this);
-    break;
-  }
-  default: {
-    std::cout << "Unknown OpenACC clause!\n";
-    assert(0);
-  }
-  };
-
-  va_end(args);
-  if (new_clause != nullptr && new_clause->getClausePosition() == -1) {
-    this->getClausesInOriginalOrder()->push_back(new_clause);
-    new_clause->setClausePosition(this->getClausesInOriginalOrder()->size() -
-                                  1);
-  };
-  return new_clause;
-};
-
-void OpenACCAsyncClause::mergeClause(OpenACCDirective *directive,
-                                     OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_async);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCAsyncClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCAsyncClause *>(*it);
-    if (incoming->getModifier() == existing->getModifier() &&
-        incoming->getAsyncExpr().text == existing->getAsyncExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCAsyncClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_async);
-  OpenACCClause *new_clause = new OpenACCAsyncClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
+  return ClauseKind::Auto;
 }
 
-void OpenACCBindClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
+ClauseKind getVarListClauseKind(VarListClauseKind Kind) {
+  switch (Kind) {
+  case VarListClauseKind::Attach:
+    return ClauseKind::Attach;
+  case VarListClauseKind::Delete:
+    return ClauseKind::Delete;
+  case VarListClauseKind::Detach:
+    return ClauseKind::Detach;
+  case VarListClauseKind::Device:
+    return ClauseKind::Device;
+  case VarListClauseKind::DeviceResident:
+    return ClauseKind::DeviceResident;
+  case VarListClauseKind::DevicePtr:
+    return ClauseKind::DevicePtr;
+  case VarListClauseKind::FirstPrivate:
+    return ClauseKind::FirstPrivate;
+  case VarListClauseKind::Host:
+    return ClauseKind::Host;
+  case VarListClauseKind::Link:
+    return ClauseKind::Link;
+  case VarListClauseKind::NoCreate:
+    return ClauseKind::NoCreate;
+  case VarListClauseKind::Present:
+    return ClauseKind::Present;
+  case VarListClauseKind::Private:
+    return ClauseKind::Private;
+  case VarListClauseKind::Self:
+    return ClauseKind::Self;
+  case VarListClauseKind::UseDevice:
+    return ClauseKind::UseDevice;
   }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_bind);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCBindClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCBindClause *>(*it);
-    if (existing->getBinding().text == incoming->getBinding().text &&
-        existing->isStringLiteral() == incoming->isStringLiteral()) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCBindClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_bind);
-  OpenACCClause *new_clause = new OpenACCBindClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
+  return ClauseKind::Attach;
 }
 
-void OpenACCCollapseClause::mergeClause(OpenACCDirective *directive,
-                                        OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
+bool equalGangArgument(const GangArgument &LHS, const GangArgument &RHS) {
+  if ((std::holds_alternative<PositionalGangArgument>(LHS) &&
+       std::holds_alternative<NumGangArgument>(RHS)) ||
+      (std::holds_alternative<NumGangArgument>(LHS) &&
+       std::holds_alternative<PositionalGangArgument>(RHS))) {
+    const IntegerExpr &Left =
+        std::holds_alternative<PositionalGangArgument>(LHS)
+            ? std::get<PositionalGangArgument>(LHS).value
+            : std::get<NumGangArgument>(LHS).value;
+    const IntegerExpr &Right =
+        std::holds_alternative<PositionalGangArgument>(RHS)
+            ? std::get<PositionalGangArgument>(RHS).value
+            : std::get<NumGangArgument>(RHS).value;
+    return Left == Right;
   }
+  if (LHS.index() != RHS.index())
+    return false;
+  return std::visit(
+      [&RHS](const auto &Left) {
+        using T = std::decay_t<decltype(Left)>;
+        const T &Right = std::get<T>(RHS);
+        return Left.value == Right.value;
+      },
+      LHS);
+}
 
-  auto *current_clauses = directive->getClauses(ACCC_collapse);
-  if (current_clauses->size() < 2) {
-    return;
-  }
+bool equalGangArguments(const std::vector<GangArgument> &LHS,
+                        const std::vector<GangArgument> &RHS) {
+  if (LHS.size() != RHS.size())
+    return false;
+  for (std::size_t I = 0; I < LHS.size(); ++I)
+    if (!equalGangArgument(LHS[I], RHS[I]))
+      return false;
+  return true;
+}
 
-  auto *incoming = static_cast<OpenACCCollapseClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCCollapseClause *>(*it);
-    if (existing->isForce() != incoming->isForce()) {
-      continue;
-    }
-
-    bool merged = false;
-    if (existing->getCounts().empty() && incoming->getCounts().empty()) {
-      merged = true;
-    } else if (!incoming->getCounts().empty()) {
-      merged = true;
-      for (const auto &count : incoming->getCounts()) {
-        bool found = false;
-        for (const auto &prev : existing->getCounts()) {
-          if (prev.text == count.text) {
-            found = true;
-            break;
-          }
+bool equalClause(const Clause &LHS, const Clause &RHS) {
+  if (LHS.index() != RHS.index())
+    return false;
+  return std::visit(
+      [&RHS](const auto &Left) {
+        using T = std::decay_t<decltype(Left)>;
+        const T &Right = std::get<T>(RHS);
+        if constexpr (std::is_same_v<T, FlagClause>) {
+          return Left.kind == Right.kind;
+        } else if constexpr (std::is_same_v<T, AsyncClause>) {
+          return Left.argument == Right.argument;
+        } else if constexpr (std::is_same_v<T, BindClause>) {
+          return Left.target == Right.target;
+        } else if constexpr (std::is_same_v<T, CollapseClause>) {
+          return Left.force == Right.force && Left.count == Right.count;
+        } else if constexpr (std::is_same_v<T, CopyClause> ||
+                             std::is_same_v<T, CopyInClause> ||
+                             std::is_same_v<T, CopyOutClause> ||
+                             std::is_same_v<T, CreateClause>) {
+          return Left.modifiers == Right.modifiers &&
+                 Left.variables == Right.variables;
+        } else if constexpr (std::is_same_v<T, DefaultClause>) {
+          return Left.value == Right.value;
+        } else if constexpr (std::is_same_v<T, DefaultAsyncClause>) {
+          return Left.argument == Right.argument;
+        } else if constexpr (std::is_same_v<T, DeviceNumClause>) {
+          return Left.value == Right.value;
+        } else if constexpr (std::is_same_v<T, DeviceTypeClause>) {
+          return Left.selectors == Right.selectors;
+        } else if constexpr (std::is_same_v<T, GangClause>) {
+          return equalGangArguments(Left.arguments, Right.arguments);
+        } else if constexpr (std::is_same_v<T, IfClause>) {
+          return Left.condition == Right.condition;
+        } else if constexpr (std::is_same_v<T, NumGangsClause>) {
+          return Left.values == Right.values;
+        } else if constexpr (std::is_same_v<T, NumWorkersClause>) {
+          return Left.value == Right.value;
+        } else if constexpr (std::is_same_v<T, ReductionClause>) {
+          return Left.op == Right.op && Left.variables == Right.variables;
+        } else if constexpr (std::is_same_v<T, SelfConditionClause>) {
+          return Left.condition == Right.condition;
+        } else if constexpr (std::is_same_v<T, TileClause>) {
+          return Left.sizes == Right.sizes;
+        } else if constexpr (std::is_same_v<T, VarListClause>) {
+          return Left.kind == Right.kind && Left.variables == Right.variables;
+        } else if constexpr (std::is_same_v<T, VectorClause>) {
+          if (Left.argument.has_value() != Right.argument.has_value())
+            return false;
+          return !Left.argument ||
+                 Left.argument->value == Right.argument->value;
+        } else if constexpr (std::is_same_v<T, VectorLengthClause>) {
+          return Left.value == Right.value;
+        } else if constexpr (std::is_same_v<T, WaitClause>) {
+          return Left.argument == Right.argument;
+        } else if constexpr (std::is_same_v<T, WorkerClause>) {
+          if (Left.argument.has_value() != Right.argument.has_value())
+            return false;
+          return !Left.argument ||
+                 Left.argument->value == Right.argument->value;
         }
-        if (!found) {
-          existing->addCountExpr(count);
-        }
-      }
-    }
-
-    if (merged) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-static void mergeVarList(OpenACCVarListClause *existing,
-                         OpenACCVarListClause *incoming) {
-  for (const auto &var : incoming->getVars()) {
-    bool seen = false;
-    for (const auto &prev : existing->getVars()) {
-      if (prev.text == var.text) {
-        seen = true;
-        break;
-      }
-    }
-    if (!seen) {
-      existing->addVar(var);
-    }
-  }
+        return false;
+      },
+      LHS);
 }
 
-void OpenACCAttachClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_attach);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCAttachClause *>(current_clause);
-  auto *existing = static_cast<OpenACCAttachClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
+bool equalClauses(const std::vector<Clause> &LHS,
+                  const std::vector<Clause> &RHS) {
+  if (LHS.size() != RHS.size())
+    return false;
+  for (std::size_t I = 0; I < LHS.size(); ++I)
+    if (!equalClause(LHS[I], RHS[I]))
+      return false;
+  return true;
 }
 
-OpenACCClause *OpenACCAttachClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_attach);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCAttachClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCAttachClause();
-    current_clauses->push_back(new_clause);
+bool equalGeneralDirective(const GeneralDirective &LHS,
+                           const GeneralDirective &RHS) {
+  if (LHS.kind != RHS.kind || !(LHS.routineName == RHS.routineName) ||
+      !(LHS.waitArgument == RHS.waitArgument) ||
+      !equalClauses(LHS.defaultClauses, RHS.defaultClauses) ||
+      LHS.deviceGroups.size() != RHS.deviceGroups.size())
+    return false;
+  for (std::size_t I = 0; I < LHS.deviceGroups.size(); ++I) {
+    const DeviceClauseGroup &Left = LHS.deviceGroups[I];
+    const DeviceClauseGroup &Right = RHS.deviceGroups[I];
+    if (!(Left.selectors == Right.selectors) ||
+        !equalClauses(Left.clauses, Right.clauses))
+      return false;
   }
-  return new_clause;
+  return true;
 }
 
-void OpenACCDeleteClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_delete);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCDeleteClause *>(current_clause);
-  auto *existing = static_cast<OpenACCDeleteClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
+} // namespace
+
+bool ParseResult::succeeded() const {
+  if (!directive)
+    return false;
+  for (const Diagnostic &Item : diagnostics)
+    if (Item.severity == DiagnosticSeverity::Error)
+      return false;
+  return true;
 }
 
-OpenACCClause *OpenACCDeleteClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_delete);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCDeleteClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCDeleteClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
+DirectiveKind Directive::kind() const {
+  return std::visit(
+      Overloaded{
+          [](const GeneralDirective &Value) { return Value.kind; },
+          [](const CacheDirective &) { return DirectiveKind::Cache; },
+          [](const EndDirective &) { return DirectiveKind::End; },
+      },
+      Payload);
 }
 
-void OpenACCDetachClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_detach);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCDetachClause *>(current_clause);
-  auto *existing = static_cast<OpenACCDetachClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
+bool Directive::semanticEquals(const Directive &Other) const {
+  if (language() != Other.language() ||
+      Payload.index() != Other.Payload.index())
+    return false;
+  return std::visit(
+      [&Other](const auto &Left) {
+        using T = std::decay_t<decltype(Left)>;
+        const T &Right = std::get<T>(Other.Payload);
+        if constexpr (std::is_same_v<T, GeneralDirective>)
+          return equalGeneralDirective(Left, Right);
+        if constexpr (std::is_same_v<T, CacheDirective>)
+          return Left.readOnly == Right.readOnly &&
+                 Left.variables == Right.variables;
+        if constexpr (std::is_same_v<T, EndDirective>)
+          return Left.kind == Right.kind;
+        return false;
+      },
+      Payload);
 }
 
-OpenACCClause *OpenACCDetachClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_detach);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCDetachClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCDetachClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
+ClauseKind getClauseKind(const Clause &Value) {
+  return std::visit(
+      Overloaded{
+          [](const FlagClause &Item) { return getFlagClauseKind(Item.kind); },
+          [](const AsyncClause &) { return ClauseKind::Async; },
+          [](const BindClause &) { return ClauseKind::Bind; },
+          [](const CollapseClause &) { return ClauseKind::Collapse; },
+          [](const CopyClause &) { return ClauseKind::Copy; },
+          [](const CopyInClause &) { return ClauseKind::CopyIn; },
+          [](const CopyOutClause &) { return ClauseKind::CopyOut; },
+          [](const CreateClause &) { return ClauseKind::Create; },
+          [](const DefaultClause &) { return ClauseKind::Default; },
+          [](const DefaultAsyncClause &) { return ClauseKind::DefaultAsync; },
+          [](const DeviceNumClause &) { return ClauseKind::DeviceNum; },
+          [](const DeviceTypeClause &) { return ClauseKind::DeviceType; },
+          [](const GangClause &) { return ClauseKind::Gang; },
+          [](const IfClause &) { return ClauseKind::If; },
+          [](const NumGangsClause &) { return ClauseKind::NumGangs; },
+          [](const NumWorkersClause &) { return ClauseKind::NumWorkers; },
+          [](const ReductionClause &) { return ClauseKind::Reduction; },
+          [](const SelfConditionClause &) { return ClauseKind::Self; },
+          [](const TileClause &) { return ClauseKind::Tile; },
+          [](const VarListClause &Item) {
+            return getVarListClauseKind(Item.kind);
+          },
+          [](const VectorClause &) { return ClauseKind::Vector; },
+          [](const VectorLengthClause &) { return ClauseKind::VectorLength; },
+          [](const WaitClause &) { return ClauseKind::Wait; },
+          [](const WorkerClause &) { return ClauseKind::Worker; },
+      },
+      Value);
 }
 
-void OpenACCCopyClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  (void)directive;
-  (void)current_clause;
+const SourceRange &getClauseRange(const Clause &Value) {
+  return std::visit(
+      [](const auto &Item) -> const SourceRange & { return Item.range; },
+      Value);
 }
 
-OpenACCClause *OpenACCCopyClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_copy);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCCopyClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCCopyClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-OpenACCClause *OpenACCCopyinClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_copyin);
-  OpenACCClause *new_clause = new OpenACCCopyinClause();
-  current_clauses->push_back(new_clause);
-
-  return new_clause;
-};
-
-void OpenACCCopyinClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_copyin);
-  for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
-       it != current_clauses->end() - 1; it++) {
-    auto *existing = static_cast<OpenACCCopyinClause *>(*it);
-    auto *incoming = static_cast<OpenACCCopyinClause *>(current_clause);
-    if (existing->getModifiers() == incoming->getModifiers() &&
-        existing->getVariant() == incoming->getVariant()) {
-      mergeVarList(existing, incoming);
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-}
-
-OpenACCClause *OpenACCCopyoutClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_copyout);
-  OpenACCClause *new_clause = new OpenACCCopyoutClause();
-  current_clauses->push_back(new_clause);
-
-  return new_clause;
-};
-
-void OpenACCCopyoutClause::mergeClause(OpenACCDirective *directive,
-                                       OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_copyout);
-  for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
-       it != current_clauses->end() - 1; it++) {
-    auto *existing = static_cast<OpenACCCopyoutClause *>(*it);
-    auto *incoming = static_cast<OpenACCCopyoutClause *>(current_clause);
-    if (existing->getModifiers() == incoming->getModifiers() &&
-        existing->getVariant() == incoming->getVariant()) {
-      mergeVarList(existing, incoming);
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-}
-
-OpenACCClause *OpenACCCreateClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_create);
-  OpenACCClause *new_clause = new OpenACCCreateClause();
-  current_clauses->push_back(new_clause);
-
-  return new_clause;
-};
-
-void OpenACCCreateClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_create);
-  for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
-       it != current_clauses->end() - 1; it++) {
-    auto *existing = static_cast<OpenACCCreateClause *>(*it);
-    auto *incoming = static_cast<OpenACCCreateClause *>(current_clause);
-    if (existing->getModifiers() == incoming->getModifiers() &&
-        existing->getVariant() == incoming->getVariant()) {
-      mergeVarList(existing, incoming);
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-}
-
-OpenACCClause *OpenACCIndirectClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_indirect);
-  OpenACCIndirectClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCIndirectClause();
-    current_clauses->push_back(new_clause);
-    // Ensure the map entry exists (though getClauses usually handles it,
-    // addOpenACCClause does the insert)
-  } else {
-    // If multiple indirect clauses are present, we might want to return the
-    // existing one if we support merging, or create a new one. For routine,
-    // usually one is enough, but to be safe and match patterns:
-    if (OpenACCDirective::getClauseMerging()) {
-      new_clause =
-          static_cast<OpenACCIndirectClause *>(current_clauses->front());
-    } else {
-      new_clause = new OpenACCIndirectClause();
-      current_clauses->push_back(new_clause);
-    }
-  }
-  return new_clause;
-}
-
-void OpenACCIndirectClause::mergeClause(OpenACCDirective *directive,
-                                        OpenACCClause *clause) {
-  OpenACCIndirectClause *indirect_clause =
-      static_cast<OpenACCIndirectClause *>(clause);
-  if (indirect_clause->isPresent()) {
-    this->setPresent(true);
-    if (!indirect_clause->getValue().text.empty()) {
-      this->setValue(indirect_clause->getValue().text,
-                     indirect_clause->getValue().is_string_literal);
-    }
-  }
-}
-
-OpenACCClause *OpenACCNoCreateClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_no_create);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCNoCreateClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCNoCreateClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-OpenACCClause *OpenACCPresentClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_present);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCPresentClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCPresentClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-OpenACCClause *OpenACCLinkClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_link);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCLinkClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCLinkClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-OpenACCClause *
-OpenACCDeviceResidentClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_device_resident);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCDeviceResidentClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCDeviceResidentClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCFirstprivateClause::mergeClause(OpenACCDirective *directive,
-                                            OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_firstprivate);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCFirstprivateClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCFirstprivateClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-OpenACCClause *
-OpenACCFirstprivateClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_firstprivate);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCFirstprivateClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCFirstprivateClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCHostClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_host);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCHostClause *>(current_clause);
-  auto *existing = static_cast<OpenACCHostClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-OpenACCClause *OpenACCHostClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_host);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCHostClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCHostClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCPrivateClause::mergeClause(OpenACCDirective *directive,
-                                       OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_private);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCPrivateClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCPrivateClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-OpenACCClause *OpenACCPrivateClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_private);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCPrivateClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCPrivateClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-OpenACCClause *OpenACCSelfClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_self);
-  OpenACCClause *new_clause = new OpenACCSelfClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-OpenACCClause *OpenACCDeviceptrClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_deviceptr);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCDeviceptrClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCDeviceptrClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-OpenACCClause *OpenACCUseDeviceClause::addClause(OpenACCDirective *directive) {
-  auto *current_clauses = directive->getClauses(ACCC_use_device);
-  OpenACCClause *new_clause = new OpenACCUseDeviceClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-void OpenACCNoCreateClause::mergeClause(OpenACCDirective *directive,
-                                        OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_no_create);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCNoCreateClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCNoCreateClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-void OpenACCPresentClause::mergeClause(OpenACCDirective *directive,
-                                       OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_present);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCPresentClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCPresentClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-void OpenACCLinkClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_link);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCLinkClause *>(current_clause);
-  auto *existing = static_cast<OpenACCLinkClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-void OpenACCDeviceResidentClause::mergeClause(OpenACCDirective *directive,
-                                              OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_device_resident);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCDeviceResidentClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCDeviceResidentClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-void OpenACCDeviceptrClause::mergeClause(OpenACCDirective *directive,
-                                         OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_deviceptr);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCDeviceptrClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCDeviceptrClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-void OpenACCUseDeviceClause::mergeClause(OpenACCDirective *directive,
-                                         OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-  auto *current_clauses = directive->getClauses(ACCC_use_device);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCUseDeviceClause *>(current_clause);
-  auto *existing =
-      static_cast<OpenACCUseDeviceClause *>(current_clauses->front());
-  mergeVarList(existing, incoming);
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-OpenACCClause *OpenACCDefaultClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_default);
-  OpenACCClause *new_clause = nullptr;
-
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCDefaultClause();
-    current_clauses->push_back(new_clause);
-  } else { /* could be an error since default clause may only appear once */
-    std::cerr << "Cannot have two default clause for the directive "
-              << directive->getKind() << ", ignored\n";
-  };
-
-  return new_clause;
-};
-
-void OpenACCDefaultAsyncClause::mergeClause(OpenACCDirective *directive,
-                                            OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_default_async);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCDefaultAsyncClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCDefaultAsyncClause *>(*it);
-    if (incoming->getAsyncExpr().text == existing->getAsyncExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *
-OpenACCDefaultAsyncClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_default_async);
-  OpenACCClause *new_clause = new OpenACCDefaultAsyncClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-void OpenACCDeviceClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  auto *current_clauses = directive->getClauses(ACCC_device);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCDeviceClause *>(current_clause);
-  auto *existing = static_cast<OpenACCDeviceClause *>(current_clauses->front());
-
-  for (const auto &dev : incoming->getDevices()) {
-    bool found = false;
-    for (const auto &prev : existing->getDevices()) {
-      if (prev.text == dev.text) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      existing->addDevice(dev);
-    }
-  }
-
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-OpenACCClause *OpenACCDeviceClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_device);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCDeviceClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCDeviceClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCIfClause::mergeClause(OpenACCDirective *directive,
-                                  OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  auto *current_clauses = directive->getClauses(ACCC_if);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCIfClause *>(current_clause);
-  auto *existing = static_cast<OpenACCIfClause *>(current_clauses->front());
-
-  if (!incoming->getCondition().text.empty() &&
-      existing->getCondition().text.empty()) {
-    existing->setCondition(incoming->getCondition());
-  }
-
-  current_clauses->pop_back();
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete incoming;
-}
-
-OpenACCClause *OpenACCIfClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_if);
-  OpenACCClause *new_clause = nullptr;
-  if (current_clauses->empty()) {
-    new_clause = new OpenACCIfClause();
-    current_clauses->push_back(new_clause);
-  } else if (OpenACCDirective::getClauseMerging()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCIfClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCDeviceNumClause::mergeClause(OpenACCDirective *directive,
-                                         OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_device_num);
-
-  for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
-       it != current_clauses->end() - 1; it++) {
-    auto *existing = static_cast<OpenACCDeviceNumClause *>(*it);
-    auto *incoming = static_cast<OpenACCDeviceNumClause *>(current_clause);
-    if (existing->getDeviceExpr().text == incoming->getDeviceExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCDeviceNumClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_device_num);
-  OpenACCClause *new_clause = new OpenACCDeviceNumClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-OpenACCClause *OpenACCTileClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_tile);
-  OpenACCClause *new_clause = new OpenACCTileClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-void OpenACCTileClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  auto *current_clauses = directive->getClauses(ACCC_tile);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCTileClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCTileClause *>(*it);
-    for (const auto &size : incoming->getTileSizes()) {
-      existing->addTileSize(size);
-    }
-    current_clauses->pop_back();
-    directive->getClausesInOriginalOrder()->pop_back();
-    delete incoming;
-    break;
-  }
-}
-
-OpenACCClause *OpenACCCollapseClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_collapse);
-  OpenACCClause *new_clause = new OpenACCCollapseClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-OpenACCClause *OpenACCGangClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_gang);
-  OpenACCGangClause *new_clause = nullptr;
-  if (directive->getKind() == ACCD_routine && !current_clauses->empty()) {
-    new_clause = static_cast<OpenACCGangClause *>(current_clauses->at(0));
-  } else {
-    new_clause = new OpenACCGangClause();
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCGangClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_gang);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCGangClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCGangClause *>(*it);
-
-    bool incoming_empty = incoming->getArgs().empty();
-    bool existing_empty = existing->getArgs().empty();
-
-    // Merge empty clauses
-    if (incoming_empty && existing_empty) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-
-    if (!incoming_empty && !existing_empty) {
-      for (const auto &arg : incoming->getArgs()) {
-        bool found = false;
-        for (const auto &prev : existing->getArgs()) {
-          if (prev.kind == arg.kind && prev.value.text == arg.value.text) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          existing->addArg(arg.kind, arg.value);
-        }
-      }
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-void OpenACCNumGangsClause::mergeClause(OpenACCDirective *directive,
-                                        OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_num_gangs);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCNumGangsClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCNumGangsClause *>(*it);
-    const auto &existing_nums = existing->getNums();
-    const auto &incoming_nums = incoming->getNums();
-    bool same = existing_nums.size() == incoming_nums.size();
-    if (same) {
-      for (size_t idx = 0; idx < existing_nums.size(); ++idx) {
-        if (existing_nums[idx].text != incoming_nums[idx].text) {
-          same = false;
-          break;
-        }
-      }
-    }
-    if (same) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCNumGangsClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_num_gangs);
-  OpenACCClause *new_clause = new OpenACCNumGangsClause();
-  current_clauses->push_back(new_clause);
-  return new_clause;
-}
-
-void OpenACCNumWorkersClause::mergeClause(OpenACCDirective *directive,
-                                          OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_num_workers);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCNumWorkersClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCNumWorkersClause *>(*it);
-    if (existing->getNumExpr().text == incoming->getNumExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCNumWorkersClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_num_workers);
-  OpenACCClause *new_clause = nullptr;
-  if (directive->getKind() == ACCD_routine && !current_clauses->empty()) {
-    new_clause = current_clauses->at(0);
-  } else {
-    new_clause = new OpenACCNumWorkersClause();
-    current_clauses->push_back(new_clause);
-  }
-
-  return new_clause;
-}
-
-OpenACCClause *OpenACCReductionClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_reduction);
-  OpenACCClause *new_clause = new OpenACCReductionClause();
-  current_clauses->push_back(new_clause);
-
-  return new_clause;
-};
-
-void OpenACCReductionClause::mergeClause(OpenACCDirective *directive,
-                                         OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_reduction);
-  for (std::vector<OpenACCClause *>::iterator it = current_clauses->begin();
-       it != current_clauses->end() - 1; it++) {
-    if (((OpenACCReductionClause *)(*it))->getOperator() ==
-        ((OpenACCReductionClause *)current_clause)->getOperator()) {
-      auto *existing = static_cast<OpenACCReductionClause *>(*it);
-      auto *incoming = static_cast<OpenACCReductionClause *>(current_clause);
-      mergeVarList(existing, incoming);
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-void OpenACCSelfClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  auto *current_clauses = directive->getClauses(ACCC_self);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCSelfClause *>(current_clause);
-  const bool incoming_has_condition = !incoming->getCondition().text.empty();
-
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCSelfClause *>(*it);
-    const bool existing_has_condition = !existing->getCondition().text.empty();
-
-    if (incoming_has_condition && existing_has_condition) {
-      if (incoming->getCondition().text == existing->getCondition().text) {
-        current_clauses->pop_back();
-        directive->getClausesInOriginalOrder()->pop_back();
-        delete incoming;
-        break;
-      }
-      continue;
-    }
-
-    // Merge self clauses that carry variable lists or are empty.
-    if (!incoming_has_condition && !existing_has_condition) {
-      const auto &incoming_vars = incoming->getVars();
-      const auto &existing_vars = existing->getVars();
-      const bool both_empty = incoming_vars.empty() && existing_vars.empty();
-      if (both_empty) {
-        current_clauses->pop_back();
-        directive->getClausesInOriginalOrder()->pop_back();
-        delete incoming;
-        break;
-      }
-
-      for (const auto &var : incoming_vars) {
-        existing->addVar(var);
-      }
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCVectorClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_vector);
-  OpenACCClause *new_clause = nullptr;
-  if (directive->getKind() == ACCD_routine) {
-    if (current_clauses->empty()) {
-      new_clause = new OpenACCVectorClause();
-      current_clauses->push_back(new_clause);
-    } else {
-      new_clause = current_clauses->at(0);
-    }
-  } else {
-    new_clause = new OpenACCVectorClause();
-    current_clauses->push_back(new_clause);
-  }
-
-  return new_clause;
-};
-
-void OpenACCVectorClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_vector);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-  auto *incoming = static_cast<OpenACCVectorClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCVectorClause *>(*it);
-    if (existing->getModifier() == incoming->getModifier() &&
-        existing->getLengthExpr().text == incoming->getLengthExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *
-OpenACCVectorLengthClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_vector_length);
-  OpenACCClause *new_clause = nullptr;
-  if (directive->getKind() == ACCD_routine) {
-    if (current_clauses->empty()) {
-      new_clause = new OpenACCVectorLengthClause();
-      current_clauses->push_back(new_clause);
-    } else {
-      new_clause = current_clauses->at(0);
-    }
-  } else {
-    new_clause = new OpenACCVectorLengthClause();
-    current_clauses->push_back(new_clause);
-  }
-
-  return new_clause;
-}
-
-void OpenACCVectorLengthClause::mergeClause(OpenACCDirective *directive,
-                                            OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_vector_length);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCVectorLengthClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCVectorLengthClause *>(*it);
-    if (existing->getLengthExpr().text == incoming->getLengthExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-OpenACCClause *OpenACCWaitClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_wait);
-  OpenACCClause *new_clause = new OpenACCWaitClause();
-  current_clauses->push_back(new_clause);
-
-  return new_clause;
-};
-
-void OpenACCWaitClause::mergeClause(OpenACCDirective *directive,
-                                    OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_wait);
-
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCWaitClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCWaitClause *>(*it);
-    if (incoming->getDevnum().text == existing->getDevnum().text &&
-        incoming->getQueues() == existing->getQueues()) {
-      const auto &incoming_ids = incoming->getAsyncIds();
-      const auto &existing_ids = existing->getAsyncIds();
-      if (incoming_ids.empty() && existing_ids.empty()) {
-        current_clauses->pop_back();
-        directive->getClausesInOriginalOrder()->pop_back();
-        delete incoming;
-        break;
-      }
-      if (!incoming_ids.empty() && !existing_ids.empty()) {
-        for (const auto &id : incoming_ids) {
-          bool found = false;
-          for (const auto &prev : existing_ids) {
-            if (prev.text == id.text) {
-              found = true;
-              break;
-            }
-          }
-          if (!found) {
-            existing->addAsyncId(id);
-          }
-        }
-        current_clauses->pop_back();
-        directive->getClausesInOriginalOrder()->pop_back();
-        delete incoming;
-        break;
-      }
-    }
-  }
-};
-
-OpenACCClause *OpenACCWorkerClause::addClause(OpenACCDirective *directive) {
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_worker);
-  OpenACCClause *new_clause = nullptr;
-  if (directive->getKind() == ACCD_routine) {
-    if (current_clauses->empty()) {
-      new_clause = new OpenACCWorkerClause();
-      current_clauses->push_back(new_clause);
-    } else {
-      new_clause = current_clauses->at(0);
-    }
-  } else {
-    new_clause = new OpenACCWorkerClause();
-    current_clauses->push_back(new_clause);
-  }
-
-  return new_clause;
-};
-
-void OpenACCWorkerClause::mergeClause(OpenACCDirective *directive,
-                                      OpenACCClause *current_clause) {
-  // Respect the global clause merging flag
-  if (!OpenACCDirective::getClauseMerging()) {
-    return;
-  }
-
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_worker);
-  if (current_clauses->size() < 2) {
-    return;
-  }
-
-  auto *incoming = static_cast<OpenACCWorkerClause *>(current_clause);
-  for (auto it = current_clauses->begin(); it != current_clauses->end() - 1;
-       ++it) {
-    auto *existing = static_cast<OpenACCWorkerClause *>(*it);
-    if (existing->getModifier() == incoming->getModifier() &&
-        existing->getNumExpr().text == incoming->getNumExpr().text) {
-      current_clauses->pop_back();
-      directive->getClausesInOriginalOrder()->pop_back();
-      delete incoming;
-      break;
-    }
-  }
-};
-
-void OpenACCDeviceTypeClause::addDeviceType(OpenACCDeviceTypeKind kind) {
-  if (kind == ACCC_DEVICE_TYPE_unknown) {
-    return;
-  }
-  for (const auto &existing : device_types) {
-    if (existing == kind) {
-      return;
-    }
-  }
-  device_types.push_back(kind);
-}
-
-void OpenACCDeviceTypeClause::addUnknownDeviceType(const std::string &value) {
-  if (value.empty()) {
-    return;
-  }
-  if (std::find(unknown_types.begin(), unknown_types.end(), value) !=
-      unknown_types.end()) {
-    return;
-  }
-  unknown_types.push_back(value);
-}
-
-void OpenACCDeviceTypeClause::addDeviceTypeString(const std::string &value) {
-  addUnknownDeviceType(value);
-}
-
-OpenACCClause *OpenACCDeviceTypeClause::addClause(OpenACCDirective *directive) {
-  auto *new_clause = new OpenACCDeviceTypeClause();
-  std::vector<OpenACCClause *> *current_clauses =
-      directive->getClauses(ACCC_device_type);
-  if (current_clauses->size() == 0) {
-    current_clauses->push_back(new_clause);
-  } else if (directive->getClauseMerging()) {
-    delete new_clause;
-    new_clause =
-        dynamic_cast<OpenACCDeviceTypeClause *>(current_clauses->at(0));
-    if (new_clause == nullptr) {
-      new_clause = new OpenACCDeviceTypeClause();
-      current_clauses->push_back(new_clause);
-    }
-  } else {
-    current_clauses->push_back(new_clause);
-  }
-  return new_clause;
-}
-
-void OpenACCDeviceTypeClause::mergeClause(OpenACCDirective *directive,
-                                          OpenACCClause *merge_clause) {
-  if (!directive->getClauseMerging()) {
-    return;
-  }
-  auto *other = dynamic_cast<OpenACCDeviceTypeClause *>(merge_clause);
-  if (other == nullptr) {
-    return;
-  }
-  for (auto k : other->device_types) {
-    addDeviceType(k);
-  }
-  for (const auto &raw : other->unknown_types) {
-    if (std::find(unknown_types.begin(), unknown_types.end(), raw) ==
-        unknown_types.end()) {
-      unknown_types.push_back(raw);
-    }
-  }
-  auto *current_clauses = directive->getClauses(ACCC_device_type);
-  if (!current_clauses->empty() && current_clauses->back() == merge_clause &&
-      current_clauses->size() > 1) {
-    current_clauses->pop_back();
-  }
-  directive->getClausesInOriginalOrder()->pop_back();
-  delete merge_clause;
-}
+} // namespace openacc

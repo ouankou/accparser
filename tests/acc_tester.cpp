@@ -1,91 +1,63 @@
 #include "OpenACCParser.h"
+#include "preprocess.h"
+
+#include <fstream>
 #include <iostream>
-#include <regex>
+#include <string>
+#include <string_view>
 
-extern std::vector<std::pair<std::string, int>>
-preProcess(std::ifstream &input_file);
+namespace {
 
-int openFile(std::ifstream &file, const char *filename) {
-  file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-  try {
-    file.open(filename);
-  } catch (std::ifstream::failure const &) {
-    std::cerr << "Exception caused by opening the given file\n";
-    return -1;
+openacc::ParseOptions optionsFor(PreprocessedForm Form) {
+  switch (Form) {
+  case PreprocessedForm::CPragma:
+    return {openacc::Language::C, openacc::InputForm::CPragma};
+  case PreprocessedForm::FortranFree:
+    return {openacc::Language::Fortran, openacc::InputForm::FortranFree};
+  case PreprocessedForm::FortranFixed:
+    return {openacc::Language::Fortran, openacc::InputForm::FortranFixed};
   }
-
-  return 0;
+  return {openacc::Language::C, openacc::InputForm::CPragma};
 }
 
-void savePragmaList(std::vector<OpenACCDirective *> *acc_ast_list,
-                    std::string filename) {
+} // namespace
 
-  std::string output_filename = filename + ".output";
-  std::ofstream output_file(output_filename.c_str(), std::ofstream::trunc);
-
-  if (acc_ast_list != NULL) {
-    for (unsigned int i = 0; i < acc_ast_list->size(); i++) {
-      if (acc_ast_list->at(i) != NULL) {
-        output_file << acc_ast_list->at(i)->generatePragmaString() << std::endl;
-      } else {
-        output_file << "NULL" << std::endl;
-      };
-    };
-  };
-
-  output_file.close();
-}
-
-int main(int argc, char **argv) {
-
-  const char *filename = NULL;
-  int result = 0;
-
-  // Built-in tests expect normalized/merged clause output; enable merging here
-  // while keeping the round-trip tool (acc_roundtrip) in non-merging mode.
-  OpenACCDirective::setClauseMerging(true);
-
-  if (argc > 1) {
-    filename = argv[1];
-  };
-  std::ifstream input_file;
-
-  if (filename != NULL) {
-    result = openFile(input_file, filename);
-  };
-  if (result) {
-    std::cout << "No testing file is available.\n";
-    return -1;
-  };
-
-  std::vector<OpenACCDirective *> *acc_ast_list =
-      new std::vector<OpenACCDirective *>();
-  OpenACCDirective *acc_ast = NULL;
-
-  std::string filename_string = std::string(filename);
-  filename_string = filename_string.substr(filename_string.rfind("/") + 1);
-
-  if (result) {
-    std::cout << "No output file is available.\n";
-    return -1;
-  };
-
-  auto acc_pragmas = preProcess(input_file);
-
-  for (const auto &pragma : acc_pragmas) {
-    acc_ast = parseOpenACC(pragma.first);
-    acc_ast_list->push_back(acc_ast);
+int main(int Argc, char **Argv) {
+  bool AllowInvalid =
+      Argc == 3 && std::string_view(Argv[1]) == "--allow-invalid";
+  if ((!AllowInvalid && Argc != 2) || (AllowInvalid && Argc != 3)) {
+    std::cerr << "usage: " << Argv[0] << " [--allow-invalid] <test-file>\n";
+    return 1;
   }
 
-  savePragmaList(acc_ast_list, filename_string);
-
-  for (OpenACCDirective *directive : *acc_ast_list) {
-    if (directive)
-      delete directive;
+  const char *InputPath = Argv[AllowInvalid ? 2 : 1];
+  std::ifstream InputFile(InputPath);
+  if (!InputFile) {
+    std::cerr << "could not open " << InputPath << '\n';
+    return 1;
   }
-  delete acc_ast_list;
 
-  input_file.close();
+  std::string Filename = InputPath;
+  Filename = Filename.substr(Filename.find_last_of('/') + 1) + ".output";
+  std::ofstream OutputFile(Filename, std::ofstream::trunc);
+  if (!OutputFile)
+    return 1;
 
-  return 0;
+  bool Failed = false;
+  for (const PreprocessedDirective &Pragma : preProcess(InputFile)) {
+    openacc::ParseOptions Options = optionsFor(Pragma.form);
+    openacc::ParseResult Result = openacc::parseDirective(Pragma.text, Options);
+    if (!Result.succeeded() || !Result.directive) {
+      std::cerr << InputPath << ':' << Pragma.line
+                << ": failed to parse directive\n";
+      OutputFile << "NULL\n";
+      Failed = true;
+      continue;
+    }
+    openacc::PrintOptions PrintOptions;
+    PrintOptions.outputForm = Options.inputForm;
+    OutputFile << openacc::formatDirective(*Result.directive, PrintOptions)
+               << '\n';
+  }
+  return Failed && !AllowInvalid ? 1 : 0;
 }

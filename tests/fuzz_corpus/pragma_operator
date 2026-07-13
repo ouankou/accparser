@@ -1,0 +1,1 @@
+_Pragma("acc routine(foo) bind(\"device_foo\") seq")

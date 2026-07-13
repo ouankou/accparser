@@ -1,243 +1,225 @@
 //===----------------------------------------------------------------------===//
 //
-// Defines some OpenACC-specific enums and functions.
+// Part of accparser, under the BSD 3-Clause License.
+// See LICENSE for license information.
+// SPDX-License-Identifier: BSD-3-Clause
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __OPENACCKINDS_H__
-#define __OPENACCKINDS_H__
+#ifndef ACCPARSER_OPENACCKINDS_H
+#define ACCPARSER_OPENACCKINDS_H
 
-// OpenACC directives.
-enum OpenACCDirectiveKind {
-#define OPENACC_DIRECTIVE(Name) ACCD_##Name,
-    OPENACC_DIRECTIVE(atomic)
-    OPENACC_DIRECTIVE(cache)
-    OPENACC_DIRECTIVE(data)
-    OPENACC_DIRECTIVE(declare)
-    OPENACC_DIRECTIVE(end)
-    OPENACC_DIRECTIVE(enter_data)
-    OPENACC_DIRECTIVE(exit_data)
-    OPENACC_DIRECTIVE(host_data)
-    OPENACC_DIRECTIVE(init)
-    OPENACC_DIRECTIVE(kernels)
-    OPENACC_DIRECTIVE(kernels_loop)
-    OPENACC_DIRECTIVE(loop)
-    OPENACC_DIRECTIVE(parallel)
-    OPENACC_DIRECTIVE(parallel_loop)
-    OPENACC_DIRECTIVE(routine)
-    OPENACC_DIRECTIVE(serial)
-    OPENACC_DIRECTIVE(serial_loop)
-    OPENACC_DIRECTIVE(set)
-    OPENACC_DIRECTIVE(shutdown)
-    OPENACC_DIRECTIVE(update)
-    OPENACC_DIRECTIVE(wait)
+#include <cstdint>
 
-    OPENACC_DIRECTIVE(unknown)
-#undef OPENACC_DIRECTIVE
+namespace openacc {
+
+enum class Language : std::uint8_t { C, Cxx, Fortran };
+
+enum class InputForm : std::uint8_t {
+  DirectiveBody,
+  CPragma,
+  CPragmaOperator,
+  FortranFree,
+  FortranFixed,
 };
 
-// OpenACC clauses.
-enum OpenACCClauseKind {
-#define OPENACC_CLAUSE(Name) ACCC_##Name,
-    OPENACC_CLAUSE(async)
-    OPENACC_CLAUSE(attach)
-    OPENACC_CLAUSE(auto)
-    OPENACC_CLAUSE(bind)
-    OPENACC_CLAUSE(capture)
-    OPENACC_CLAUSE(collapse)
-    OPENACC_CLAUSE(copy)
-    OPENACC_CLAUSE(copyin)
-    OPENACC_CLAUSE(copyout)
-    OPENACC_CLAUSE(create)
-    OPENACC_CLAUSE(default_async)
-    OPENACC_CLAUSE(default)
-    OPENACC_CLAUSE(delete)
-    OPENACC_CLAUSE(detach)
-    OPENACC_CLAUSE(device)
-    OPENACC_CLAUSE(device_num)
-    OPENACC_CLAUSE(device_resident)
-    OPENACC_CLAUSE(device_type)
-    OPENACC_CLAUSE(deviceptr)
-    OPENACC_CLAUSE(finalize)
-    OPENACC_CLAUSE(firstprivate)
-    OPENACC_CLAUSE(gang)
-    OPENACC_CLAUSE(host)
-    OPENACC_CLAUSE(if)
-    OPENACC_CLAUSE(if_present)
-    OPENACC_CLAUSE(independent)
-    OPENACC_CLAUSE(indirect)
-    OPENACC_CLAUSE(link)
-    OPENACC_CLAUSE(nohost)
-    OPENACC_CLAUSE(no_create)
-    OPENACC_CLAUSE(num_gangs)
-    OPENACC_CLAUSE(num_workers)
-    OPENACC_CLAUSE(present)
-    OPENACC_CLAUSE(private)
-    OPENACC_CLAUSE(reduction)
-    OPENACC_CLAUSE(read)
-    OPENACC_CLAUSE(self)
-    OPENACC_CLAUSE(seq)
-    OPENACC_CLAUSE(tile)
-    OPENACC_CLAUSE(update)
-    OPENACC_CLAUSE(use_device)
-    OPENACC_CLAUSE(vector)
-    OPENACC_CLAUSE(vector_length)
-    OPENACC_CLAUSE(wait)
-    OPENACC_CLAUSE(worker)
-    OPENACC_CLAUSE(write)
-
-    OPENACC_CLAUSE(unknown)
-#undef OPENACC_CLAUSE
+enum class DirectiveKind : std::uint8_t {
+  Atomic,
+  Cache,
+  Data,
+  Declare,
+  End,
+  EnterData,
+  ExitData,
+  HostData,
+  Init,
+  Kernels,
+  KernelsLoop,
+  Loop,
+  Parallel,
+  ParallelLoop,
+  Routine,
+  Serial,
+  SerialLoop,
+  Set,
+  Shutdown,
+  Update,
+  Wait,
 };
 
-// Separator used between clause arguments when unparsing.
-enum OpenACCClauseSeparator {
-  ACCC_CLAUSE_SEP_space,
-  ACCC_CLAUSE_SEP_comma
+enum class EndDirectiveKind : std::uint8_t {
+  Atomic,
+  Data,
+  HostData,
+  Kernels,
+  KernelsLoop,
+  Loop,
+  Parallel,
+  ParallelLoop,
+  Serial,
+  SerialLoop,
 };
 
-// OpenACC data clause modifiers (e.g., copyin(always, readonly: ...)).
-enum OpenACCDataClauseModifierKind {
-#define OPENACC_DATA_CLAUSE_MODIFIER(Name) ACCC_DATA_MOD_##Name,
-    OPENACC_DATA_CLAUSE_MODIFIER(always)
-    OPENACC_DATA_CLAUSE_MODIFIER(alwaysin)
-    OPENACC_DATA_CLAUSE_MODIFIER(alwaysout)
-    OPENACC_DATA_CLAUSE_MODIFIER(capture)
-    OPENACC_DATA_CLAUSE_MODIFIER(readonly)
-    OPENACC_DATA_CLAUSE_MODIFIER(zero)
-    OPENACC_DATA_CLAUSE_MODIFIER(unknown)
-#undef OPENACC_DATA_CLAUSE_MODIFIER
+enum class ClauseKind : std::uint8_t {
+  Async,
+  Attach,
+  Auto,
+  Bind,
+  Capture,
+  Collapse,
+  Copy,
+  CopyIn,
+  CopyOut,
+  Create,
+  DefaultAsync,
+  Default,
+  Delete,
+  Detach,
+  Device,
+  DeviceNum,
+  DeviceResident,
+  DeviceType,
+  DevicePtr,
+  Finalize,
+  FirstPrivate,
+  Gang,
+  Host,
+  If,
+  IfPresent,
+  Independent,
+  Link,
+  NoHost,
+  NoCreate,
+  NumGangs,
+  NumWorkers,
+  Present,
+  Private,
+  Read,
+  Reduction,
+  Self,
+  Seq,
+  Tile,
+  Update,
+  UseDevice,
+  Vector,
+  VectorLength,
+  Wait,
+  Worker,
+  Write,
 };
 
-enum OpenACCDeviceTypeKind {
-    ACCC_DEVICE_TYPE_unknown,
-    ACCC_DEVICE_TYPE_host,
-    ACCC_DEVICE_TYPE_any,
-    ACCC_DEVICE_TYPE_multicore,
-    ACCC_DEVICE_TYPE_default
+enum class FlagClauseKind : std::uint8_t {
+  Auto,
+  Capture,
+  Finalize,
+  IfPresent,
+  Independent,
+  NoHost,
+  Read,
+  Seq,
+  Update,
+  Write,
 };
 
-// OpenACC attributes for 'cache' directive.
-enum OpenACCCacheDirectiveModifier {
-#define OPENACC_CACHE_MODIFIER(Name) ACCC_CACHE_##Name,
-    OPENACC_CACHE_MODIFIER(unspecified)
-    OPENACC_CACHE_MODIFIER(readonly)
-    OPENACC_CACHE_MODIFIER(unknown)
-#undef OPENACC_CACHE_MODIFIER
+enum class VarListClauseKind : std::uint8_t {
+  Attach,
+  Delete,
+  Detach,
+  Device,
+  DeviceResident,
+  DevicePtr,
+  FirstPrivate,
+  Host,
+  Link,
+  NoCreate,
+  Present,
+  Private,
+  Self,
+  UseDevice,
 };
 
-// OpenACC attributes for 'copyin' clause.
-enum OpenACCCopyinClauseModifier {
-#define OPENACC_COPYIN_MODIFIER(Name) ACCC_COPYIN_##Name,
-    OPENACC_COPYIN_MODIFIER(unspecified)
-    OPENACC_COPYIN_MODIFIER(readonly)
-    OPENACC_COPYIN_MODIFIER(unknown)
-#undef OPENACC_COPYIN_MODIFIER
+enum class CopyModifier : std::uint8_t {
+  Always,
+  AlwaysIn,
+  AlwaysOut,
+  Capture,
 };
 
-// OpenACC attributes for 'copyout' clause.
-enum OpenACCCopyoutClauseModifier {
-#define OPENACC_COPYOUT_MODIFIER(Name) ACCC_COPYOUT_##Name,
-    OPENACC_COPYOUT_MODIFIER(unspecified)
-    OPENACC_COPYOUT_MODIFIER(zero)
-    OPENACC_COPYOUT_MODIFIER(unknown)
-#undef OPENACC_COPYOUT_MODIFIER
+enum class CopyInModifier : std::uint8_t {
+  Always,
+  AlwaysIn,
+  Capture,
+  ReadOnly,
 };
 
-// OpenACC data clause variants (e.g., copy vs pcopy vs present_or_copy)
-enum OpenACCDataClauseVariant {
-  ACCC_DATA_COPY_unspecified,
-  ACCC_DATA_COPY_copy,
-  ACCC_DATA_COPY_pcopy,
-  ACCC_DATA_COPY_present_or_copy,
-  ACCC_DATA_COPYIN_copyin,
-  ACCC_DATA_COPYIN_pcopyin,
-  ACCC_DATA_COPYIN_present_or_copyin,
-  ACCC_DATA_COPYOUT_copyout,
-  ACCC_DATA_COPYOUT_pcopyout,
-  ACCC_DATA_COPYOUT_present_or_copyout,
-  ACCC_DATA_CREATE_create,
-  ACCC_DATA_CREATE_pcreate,
-  ACCC_DATA_CREATE_present_or_create
+enum class CopyOutModifier : std::uint8_t {
+  Always,
+  AlwaysOut,
+  Capture,
+  Zero,
 };
 
-// OpenACC attributes for 'create' clause.
-enum OpenACCCreateClauseModifier {
-#define OPENACC_CREATE_MODIFIER(Name) ACCC_CREATE_##Name,
-    OPENACC_CREATE_MODIFIER(unspecified)
-    OPENACC_CREATE_MODIFIER(zero)
-    OPENACC_CREATE_MODIFIER(unknown)
-#undef OPENACC_CREATE_MODIFIER
+enum class CreateModifier : std::uint8_t {
+  Capture,
+  Zero,
 };
 
-// OpenACC attributes for 'default' clause.
-enum OpenACCDefaultClauseKind {
-#define OPENACC_DEFAULT_KIND(Name) ACCC_DEFAULT_##Name,
-    OPENACC_DEFAULT_KIND(unspecified)
-    OPENACC_DEFAULT_KIND(none)
-    OPENACC_DEFAULT_KIND(present)
-    OPENACC_DEFAULT_KIND(unknown)
-#undef OPENACC_DEFAULT_KIND
+enum class DefaultKind : std::uint8_t { None, Present };
+
+enum class ReductionOperator : std::uint8_t {
+  Add,
+  Subtract,
+  Multiply,
+  Maximum,
+  Minimum,
+  BitAnd,
+  BitOr,
+  BitXor,
+  LogicalAnd,
+  LogicalOr,
+  FortranAnd,
+  FortranOr,
+  FortranEqv,
+  FortranNeqv,
+  FortranIand,
+  FortranIor,
+  FortranIeor,
 };
 
-// OpenACC attributes for 'reduction' clause.
-enum OpenACCReductionClauseOperator {
-#define OPENACC_REDUCTION_OPERATOR(Name) ACCC_REDUCTION_##Name,
-    OPENACC_REDUCTION_OPERATOR(unspecified)
-    OPENACC_REDUCTION_OPERATOR(readonly)
-    OPENACC_REDUCTION_OPERATOR(add)
-    OPENACC_REDUCTION_OPERATOR(sub)
-    OPENACC_REDUCTION_OPERATOR(mul)
-    OPENACC_REDUCTION_OPERATOR(max)
-    OPENACC_REDUCTION_OPERATOR(min)
-    OPENACC_REDUCTION_OPERATOR(bitand)
-    OPENACC_REDUCTION_OPERATOR(bitor)
-    OPENACC_REDUCTION_OPERATOR(bitxor)
-    OPENACC_REDUCTION_OPERATOR(logand)
-    OPENACC_REDUCTION_OPERATOR(logor)
-    OPENACC_REDUCTION_OPERATOR(fort_and)
-    OPENACC_REDUCTION_OPERATOR(fort_or)
-    OPENACC_REDUCTION_OPERATOR(fort_eqv)
-    OPENACC_REDUCTION_OPERATOR(fort_neqv)
-    OPENACC_REDUCTION_OPERATOR(fort_iand)
-    OPENACC_REDUCTION_OPERATOR(fort_ior)
-    OPENACC_REDUCTION_OPERATOR(fort_ieor)
-    OPENACC_REDUCTION_OPERATOR(unknown)
-#undef OPENACC_REDUCTION_OPERATOR
+enum class GangArgumentKind : std::uint8_t {
+  PositionalNum,
+  Num,
+  Dim,
+  Static,
 };
 
-// OpenACC attributes for 'vector' clause.
-enum OpenACCVectorClauseModifier {
-#define OPENACC_VECTOR_MODIFIER(Name) ACCC_VECTOR_##Name,
-    OPENACC_VECTOR_MODIFIER(unspecified)
-    OPENACC_VECTOR_MODIFIER(length)
-    OPENACC_VECTOR_MODIFIER(expr_only)
-    OPENACC_VECTOR_MODIFIER(unknown)
-#undef OPENACC_VECTOR_MODIFIER
+enum class DiagnosticSeverity : std::uint8_t { Warning, Error };
+
+enum class DiagnosticCode : std::uint8_t {
+  InvalidEnvelope,
+  InvalidLanguageForm,
+  InvalidCharacter,
+  UnterminatedDelimiter,
+  UnterminatedString,
+  SyntaxError,
+  UnknownDirective,
+  UnknownClause,
+  UnexpectedClause,
+  MissingClause,
+  DuplicateClause,
+  InvalidClauseOrder,
+  MissingArgument,
+  UnexpectedArgument,
+  EmptyListItem,
+  TrailingComma,
+  InvalidModifier,
+  DuplicateModifier,
+  InvalidValue,
+  InvalidCombination,
+  UnsupportedExtension,
+  InternalError,
 };
 
-// OpenACC attributes for 'worker' clause.
-enum OpenACCWorkerClauseModifier {
-#define OPENACC_WORKER_MODIFIER(Name) ACCC_WORKER_##Name,
-    OPENACC_WORKER_MODIFIER(unspecified)
-    OPENACC_WORKER_MODIFIER(num)
-    OPENACC_WORKER_MODIFIER(expr_only)
-    OPENACC_WORKER_MODIFIER(unknown)
-#undef OPENACC_WORKER_MODIFIER
-};
+} // namespace openacc
 
-enum OpenACCAsyncModifier {
-  ACCC_ASYNC_unspecified,
-  ACCC_ASYNC_expr
-};
-
-enum OpenACCGangArgKind {
-  ACCC_GANG_ARG_unknown,
-  ACCC_GANG_ARG_num,
-  ACCC_GANG_ARG_num_no_keyword,
-  ACCC_GANG_ARG_dim,
-  ACCC_GANG_ARG_static,
-  ACCC_GANG_ARG_other
-};
-
-#endif
+#endif // ACCPARSER_OPENACCKINDS_H

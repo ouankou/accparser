@@ -1,0 +1,1 @@
+#pragma acc parallel __vendor_hint(x)
