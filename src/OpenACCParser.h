@@ -40,10 +40,4 @@ std::string formatDirective(const Directive &Value, PrintOptions Options = {});
 
 } // namespace openacc
 
-using OpenACCDirective [[deprecated("use openacc::Directive")]] =
-    openacc::Directive;
-
-[[deprecated("use openacc::parseDirective")]] openacc::Directive *
-parseOpenACC(std::string Input);
-
 #endif // ACCPARSER_OPENACCPARSER_H
