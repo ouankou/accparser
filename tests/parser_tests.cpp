@@ -289,6 +289,55 @@ void testHostFragmentsAndSpelling() {
               Language::Cxx);
 }
 
+void testTypedHostFragmentVisitation() {
+  ParseResult Parallel =
+      parse("#pragma acc parallel async(delay) if(flag) "
+            "copy(a[0:n], obj.member) num_gangs(gangs) reduction(+:sum)");
+  if (!Parallel.succeeded() || !Parallel.directive) {
+    fail("host-fragment visitation specimen did not parse");
+    return;
+  }
+  std::vector<std::pair<openacc::HostFragmentKind, std::string>> Fragments;
+  openacc::visitHostFragments(
+      *Parallel.directive, [&](const openacc::HostFragmentView &Fragment) {
+        Fragments.emplace_back(Fragment.kind, Fragment.spelling);
+        if (Fragment.range.begin.byteOffset >= Fragment.range.end.byteOffset)
+          fail("host-fragment visitor lost its exact source range");
+      });
+  const std::vector<std::pair<openacc::HostFragmentKind, std::string>>
+      Expected = {
+          {openacc::HostFragmentKind::Expression, "delay"},
+          {openacc::HostFragmentKind::Expression, "flag"},
+          {openacc::HostFragmentKind::Variable, "a[0:n]"},
+          {openacc::HostFragmentKind::Variable, "obj.member"},
+          {openacc::HostFragmentKind::Expression, "gangs"},
+          {openacc::HostFragmentKind::Variable, "sum"},
+      };
+  if (Fragments != Expected)
+    fail("typed host-fragment visitor changed source order, role, or spelling");
+
+  ParseResult Wait =
+      parse("#pragma acc wait(devnum:device:queues:q0,q1) async(done)");
+  if (!Wait.succeeded() || !Wait.directive) {
+    fail("wait host-fragment visitation specimen did not parse");
+    return;
+  }
+  Fragments.clear();
+  openacc::visitHostFragments(
+      *Wait.directive, [&](const openacc::HostFragmentView &Fragment) {
+        Fragments.emplace_back(Fragment.kind, Fragment.spelling);
+      });
+  const std::vector<std::pair<openacc::HostFragmentKind, std::string>>
+      ExpectedWait = {
+          {openacc::HostFragmentKind::Expression, "device"},
+          {openacc::HostFragmentKind::Expression, "q0"},
+          {openacc::HostFragmentKind::Expression, "q1"},
+          {openacc::HostFragmentKind::Expression, "done"},
+      };
+  if (Fragments != ExpectedWait)
+    fail("wait host-fragment visitor changed semantic consumption order");
+}
+
 void testReductionOperators() {
   for (std::string_view Operator :
        {"+", "-", "*", "max", "min", "&", "|", "^", "&&", "||"})
@@ -591,6 +640,7 @@ int main() {
   testDirectiveFamilies();
   testTypedModel();
   testHostFragmentsAndSpelling();
+  testTypedHostFragmentVisitation();
   testReductionOperators();
   testCxxTemplateCommas();
   testImplementationClauses();

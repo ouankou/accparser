@@ -9,6 +9,7 @@
 #include "OpenACCIR.h"
 #include "OpenACCParser.h"
 
+#include <cstdlib>
 #include <type_traits>
 
 namespace openacc {
@@ -246,6 +247,147 @@ bool Directive::semanticEquals(const Directive &Other) const {
         return false;
       },
       Payload);
+}
+
+void visitHostFragments(const Directive &Value,
+                        const HostFragmentVisitor &Visitor) {
+  if (!Visitor)
+    std::abort();
+
+  auto emitExpression = [&Visitor](const auto &Fragment) {
+    Visitor(
+        {HostFragmentKind::Expression, Fragment.spelling(), Fragment.range()});
+  };
+  auto emitVariable = [&Visitor](const VariableRef &Fragment) {
+    Visitor(
+        {HostFragmentKind::Variable, Fragment.spelling(), Fragment.range()});
+  };
+  auto visitVariables = [&emitVariable](const auto &Variables) {
+    for (const VariableRef &Variable : Variables.values())
+      emitVariable(Variable);
+  };
+  auto visitSize = [&emitExpression](const SizeExpr &Size) {
+    if (const IntegerExpr *Expression = std::get_if<IntegerExpr>(&Size))
+      emitExpression(*Expression);
+  };
+  auto visitWaitArgument = [&emitExpression](const WaitArgument &Argument) {
+    if (Argument.deviceNumber)
+      emitExpression(*Argument.deviceNumber);
+    if (Argument.queues)
+      for (const AsyncArgument &Queue : Argument.queues->values())
+        emitExpression(Queue);
+  };
+  auto visitClause = [&](const Clause &Value) {
+    std::visit(
+        Overloaded{
+            [](const FlagClause &) {},
+            [&emitExpression](const AsyncClause &Clause) {
+              if (Clause.argument)
+                emitExpression(*Clause.argument);
+            },
+            [](const BindClause &) {},
+            [&emitExpression](const CollapseClause &Clause) {
+              emitExpression(Clause.count);
+            },
+            [&visitVariables](const CopyClause &Clause) {
+              visitVariables(Clause.variables);
+            },
+            [&visitVariables](const CopyInClause &Clause) {
+              visitVariables(Clause.variables);
+            },
+            [&visitVariables](const CopyOutClause &Clause) {
+              visitVariables(Clause.variables);
+            },
+            [&visitVariables](const CreateClause &Clause) {
+              visitVariables(Clause.variables);
+            },
+            [](const DefaultClause &) {},
+            [&emitExpression](const DefaultAsyncClause &Clause) {
+              emitExpression(Clause.argument);
+            },
+            [&emitExpression](const DeviceNumClause &Clause) {
+              emitExpression(Clause.value);
+            },
+            [](const DeviceTypeClause &) {},
+            [&emitExpression, &visitSize](const GangClause &Clause) {
+              for (const GangArgument &Argument : Clause.arguments) {
+                std::visit(
+                    Overloaded{
+                        [&emitExpression](const PositionalGangArgument &Item) {
+                          emitExpression(Item.value);
+                        },
+                        [&emitExpression](const NumGangArgument &Item) {
+                          emitExpression(Item.value);
+                        },
+                        [&emitExpression](const DimGangArgument &Item) {
+                          emitExpression(Item.value);
+                        },
+                        [&visitSize](const StaticGangArgument &Item) {
+                          visitSize(Item.value);
+                        },
+                    },
+                    Argument);
+              }
+            },
+            [&emitExpression](const IfClause &Clause) {
+              emitExpression(Clause.condition);
+            },
+            [&emitExpression](const NumGangsClause &Clause) {
+              for (const IntegerExpr &Expression : Clause.values.values())
+                emitExpression(Expression);
+            },
+            [&emitExpression](const NumWorkersClause &Clause) {
+              emitExpression(Clause.value);
+            },
+            [&visitVariables](const ReductionClause &Clause) {
+              visitVariables(Clause.variables);
+            },
+            [&emitExpression](const SelfConditionClause &Clause) {
+              if (Clause.condition)
+                emitExpression(*Clause.condition);
+            },
+            [&visitSize](const TileClause &Clause) {
+              for (const SizeExpr &Size : Clause.sizes.values())
+                visitSize(Size);
+            },
+            [&visitVariables](const VarListClause &Clause) {
+              visitVariables(Clause.variables);
+            },
+            [&emitExpression](const VectorClause &Clause) {
+              if (Clause.argument)
+                emitExpression(Clause.argument->value);
+            },
+            [&emitExpression](const VectorLengthClause &Clause) {
+              emitExpression(Clause.value);
+            },
+            [&visitWaitArgument](const WaitClause &Clause) {
+              if (Clause.argument)
+                visitWaitArgument(*Clause.argument);
+            },
+            [&emitExpression](const WorkerClause &Clause) {
+              if (Clause.argument)
+                emitExpression(Clause.argument->value);
+            },
+        },
+        Value);
+  };
+
+  std::visit(Overloaded{
+                 [&](const GeneralDirective &Directive) {
+                   if (Directive.waitArgument)
+                     visitWaitArgument(*Directive.waitArgument);
+                   for (const Clause &Clause : Directive.defaultClauses)
+                     visitClause(Clause);
+                   for (const DeviceClauseGroup &Group : Directive.deviceGroups)
+                     for (const Clause &Clause : Group.clauses)
+                       visitClause(Clause);
+                 },
+                 [&](const CacheDirective &Directive) {
+                   visitVariables(Directive.variables);
+                 },
+                 [](const EndDirective &) {},
+             },
+             Value.payload());
 }
 
 ClauseKind getClauseKind(const Clause &Value) {
