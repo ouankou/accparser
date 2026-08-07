@@ -24,13 +24,6 @@ target_link_libraries(lang_flag_test.out accparser)
 
 add_test(NAME lang_flag_test COMMAND lang_flag_test.out)
 
-add_executable(compat_caller.out
-    compat_caller.cpp)
-add_dependencies(compat_caller.out accparser)
-target_link_libraries(compat_caller.out accparser)
-
-add_test(NAME compat_caller COMMAND compat_caller.out)
-
 find_package(Threads REQUIRED)
 add_executable(parser_tests.out parser_tests.cpp)
 add_dependencies(parser_tests.out accparser)
@@ -81,7 +74,6 @@ endforeach()
 
 set(ACCPARSER_DIRECT_TESTS
     lang_flag_test
-    compat_caller
     parser_tests
     preprocess_tests)
 foreach(TEST_NAME IN LISTS ACCPARSER_DIRECT_TESTS)

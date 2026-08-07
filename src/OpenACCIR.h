@@ -12,8 +12,10 @@
 #include "OpenACCKinds.h"
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -376,6 +378,19 @@ private:
   SourceRange Range;
   DirectivePayload Payload;
 };
+
+enum class HostFragmentKind { Expression, RoutineName, Variable };
+
+struct HostFragmentView {
+  HostFragmentKind kind;
+  std::string_view spelling;
+  SourceRange range;
+};
+
+using HostFragmentVisitor = std::function<void(const HostFragmentView &)>;
+
+void visitHostFragments(const Directive &Value,
+                        const HostFragmentVisitor &Visitor);
 
 ClauseKind getClauseKind(const Clause &Value);
 const SourceRange &getClauseRange(const Clause &Value);

@@ -73,6 +73,6 @@ are partitioned into explicit groups, lists are nonempty by construction, and
 host fragments are distinguished as conditions, integer expressions, variable
 references, routine names, and other semantic categories.
 
-`parseOpenACC(std::string)` remains as a deprecated transition wrapper. New
-code should use `openacc::parseDirective`, which is reentrant, has no global
-merge mode, and returns structured diagnostics.
+The public API is `openacc::parseDirective`, which is reentrant, requires the
+caller to state the source language and envelope explicitly, and returns
+structured diagnostics without heap-transfer or sentinel-based failure modes.
