@@ -336,6 +336,25 @@ void testTypedHostFragmentVisitation() {
       };
   if (Fragments != ExpectedWait)
     fail("wait host-fragment visitor changed semantic consumption order");
+
+  ParseResult Routine = parse("#pragma acc routine(foo) seq");
+  if (!Routine.succeeded() || !Routine.directive) {
+    fail("routine host-fragment visitation specimen did not parse");
+    return;
+  }
+  Fragments.clear();
+  openacc::visitHostFragments(
+      *Routine.directive, [&](const openacc::HostFragmentView &Fragment) {
+        Fragments.emplace_back(Fragment.kind, Fragment.spelling);
+        if (Fragment.range.begin.byteOffset >= Fragment.range.end.byteOffset)
+          fail("routine-name visitor lost its exact source range");
+      });
+  const std::vector<std::pair<openacc::HostFragmentKind, std::string>>
+      ExpectedRoutine = {
+          {openacc::HostFragmentKind::RoutineName, "foo"},
+      };
+  if (Fragments != ExpectedRoutine)
+    fail("routine-name host fragment was omitted or misclassified");
 }
 
 void testReductionOperators() {

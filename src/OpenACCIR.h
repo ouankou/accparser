@@ -379,7 +379,7 @@ private:
   DirectivePayload Payload;
 };
 
-enum class HostFragmentKind { Expression, Variable };
+enum class HostFragmentKind { Expression, RoutineName, Variable };
 
 struct HostFragmentView {
   HostFragmentKind kind;

@@ -262,6 +262,10 @@ void visitHostFragments(const Directive &Value,
     Visitor(
         {HostFragmentKind::Variable, Fragment.spelling(), Fragment.range()});
   };
+  auto emitRoutineName = [&Visitor](const RoutineName &Fragment) {
+    Visitor(
+        {HostFragmentKind::RoutineName, Fragment.spelling(), Fragment.range()});
+  };
   auto visitVariables = [&emitVariable](const auto &Variables) {
     for (const VariableRef &Variable : Variables.values())
       emitVariable(Variable);
@@ -374,6 +378,8 @@ void visitHostFragments(const Directive &Value,
 
   std::visit(Overloaded{
                  [&](const GeneralDirective &Directive) {
+                   if (Directive.routineName)
+                     emitRoutineName(*Directive.routineName);
                    if (Directive.waitArgument)
                      visitWaitArgument(*Directive.waitArgument);
                    for (const Clause &Clause : Directive.defaultClauses)
