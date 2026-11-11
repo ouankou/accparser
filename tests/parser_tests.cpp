@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -653,6 +654,117 @@ void testConcurrency() {
     fail("concurrent parse calls were not independent");
 }
 
+ParseResult parseFixed(std::string_view Input) {
+  return parse(Input, Language::Fortran, InputForm::FortranFixed);
+}
+
+void expectSameFixedForm(std::string_view Compact, std::string_view Spaced) {
+  ParseResult CompactResult = parseFixed(Compact);
+  ParseResult SpacedResult = parseFixed(Spaced);
+  if (!CompactResult.succeeded() || !SpacedResult.succeeded() ||
+      !CompactResult.directive->semanticEquals(*SpacedResult.directive) ||
+      openacc::formatDirective(*CompactResult.directive) !=
+          openacc::formatDirective(*SpacedResult.directive))
+    fail("fixed-form keywords did not split like blank-separated input: " +
+         std::string(Compact));
+}
+
+void expectFixedFormDiagnostic(std::string_view Input, std::size_t BeginLine,
+                               std::size_t BeginColumn, std::size_t EndColumn) {
+  ParseResult Result = parseFixed(Input);
+  if (Result.succeeded() || Result.diagnostics.empty() ||
+      Result.diagnostics.front().range.begin.line != BeginLine ||
+      Result.diagnostics.front().range.begin.column != BeginColumn ||
+      Result.diagnostics.front().range.end.line != BeginLine ||
+      Result.diagnostics.front().range.end.column != EndColumn)
+    fail("fixed-form keyword split lost the source range: " +
+         std::string(Input));
+}
+
+void testFortranFixedFormKeywords() {
+  // Fixed-form Fortran ignores blanks outside character literals, and Flang
+  // removes them from compiler-directive lines.
+  const std::vector<std::pair<std::string, std::string>> Pairs = {
+      {"!$acc endparallel", "!$acc end parallel"},
+      {"!$acc parallelloopgang", "!$acc parallel loop gang"},
+      {"!$acc parallelloopgangvector", "!$acc parallel loop gang vector"},
+      {"!$acc kernelsloop", "!$acc kernels loop"},
+      {"!$acc endkernelsloop", "!$acc end kernels loop"},
+      {"!$acc enterdatacopyin(a)", "!$acc enter data copyin(a)"},
+      {"!$acc exitdatadelete(a)", "!$acc exit data delete(a)"},
+      {"!$acc datacopy(a)", "!$acc data copy(a)"},
+      {"!$acc enddata", "!$acc end data"},
+      {"!$acc updatehost(a)", "!$acc update host(a)"},
+      {"!$acc loopindependent", "!$acc loop independent"},
+      {"!$acc loopseq", "!$acc loop seq"},
+      {"!$acc loopcollapse(2)gang", "!$acc loop collapse(2) gang"},
+      {"!$acc parallelnum_gangs(4)vector_length(32)",
+       "!$acc parallel num_gangs(4) vector_length(32)"},
+      {"!$acc parallelasyncwait", "!$acc parallel async wait"},
+      {"!$acc parallelcopyin(a)copyout(b)",
+       "!$acc parallel copyin(a) copyout(b)"},
+      {"!$acc parallelif(n.gt.1)", "!$acc parallel if(n.gt.1)"},
+      {"!$acc paralleldefault(none)", "!$acc parallel default(none)"},
+      {"!$acc routineseq", "!$acc routine seq"},
+      {"!$acc routine(foo)seq", "!$acc routine(foo) seq"},
+      {"!$acc atomicupdate", "!$acc atomic update"},
+      {"!$acc endatomic", "!$acc end atomic"},
+      {"!$acc host_datause_device(a)", "!$acc host_data use_device(a)"},
+      {"!$acc waitasync(1)", "!$acc wait async(1)"},
+      {"!$acc wait(1)async(2)", "!$acc wait(1) async(2)"},
+      {"!$acc declarecreate(a)", "!$acc declare create(a)"},
+      {"!$acc serialloop", "!$acc serial loop"},
+      {"!$acc parallelloopreduction(+:s)",
+       "!$acc parallel loop reduction(+:s)"},
+      {"!$acc loopgang(static:4)", "!$acc loop gang(static:4)"},
+      {"!$acc setdefault_async(1)device_num(0)",
+       "!$acc set default_async(1) device_num(0)"},
+      {"!$acc updateif_presentself(a)", "!$acc update if_present self(a)"},
+      {"!$ACC ParallelLoopGang", "!$acc parallel loop gang"},
+      {"!$acc par allel lo op", "!$acc parallel loop"},
+      // Arguments are not keyword positions.
+      {"!$acc parallelcopyin(cgroup_alloc,device_compute)"
+       "private(target_function,data1)",
+       "!$acc parallel copyin(cgroup_alloc,device_compute) "
+       "private(target_function,data1)"},
+      {"!$acc routinebind(\"seq gang\")seq",
+       "!$acc routine bind(\"seq gang\") seq"},
+      // An implementation clause name ends at a blank or delimiter.
+      {"!$acc parallel__vendor_hint(x)", "!$acc parallel"},
+      {"!$acc loop __vendor_flag seq", "!$acc loop seq"},
+      // Continuation lines join without a token boundary.
+      {"!$acc paral\n!$acc+lelloop\n!$acc+gang", "!$acc parallel loop gang"},
+      {"!$acc parallel\n!$acc&copyin(a,\n!$acc&b)copyout(c)",
+       "!$acc parallel copyin(a, b) copyout(c)"},
+  };
+  for (const auto &[Compact, Spaced] : Pairs)
+    expectSameFixedForm(Compact, Spaced);
+
+  ParseResult Gang = parseFixed("!$acc parallelloopgang");
+  const auto *GangGeneral =
+      Gang.directive
+          ? std::get_if<openacc::GeneralDirective>(&Gang.directive->payload())
+          : nullptr;
+  if (!GangGeneral ||
+      GangGeneral->kind != openacc::DirectiveKind::ParallelLoop ||
+      GangGeneral->defaultClauses.size() != 1 ||
+      !std::holds_alternative<openacc::GangClause>(
+          GangGeneral->defaultClauses.front()))
+    fail("fixed-form keyword run did not build a combined directive");
+
+  expectInvalid("!$acc parallelloopbogus", DiagnosticCode::UnknownDirective,
+                Language::Fortran, InputForm::FortranFixed);
+  expectInvalid("!$acc endparallelloopgang", DiagnosticCode::SyntaxError,
+                Language::Fortran, InputForm::FortranFixed);
+  expectFixedFormDiagnostic("!$acc parallelseq", 1, 15, 18);
+  expectFixedFormDiagnostic("!$acc paral\n!$acc+lelseq", 2, 10, 13);
+
+  // Blanks stay significant in free form and C.
+  expectInvalid("!$acc endparallel", DiagnosticCode::UnknownDirective,
+                Language::Fortran, InputForm::FortranFree);
+  expectInvalid("#pragma acc parallelloop", DiagnosticCode::UnknownDirective);
+}
+
 } // namespace
 
 int main() {
@@ -668,5 +780,6 @@ int main() {
   testDeviceSpecificOverride();
   testNoCrossParseState();
   testConcurrency();
+  testFortranFixedFormKeywords();
   return Failures == 0 ? 0 : 1;
 }

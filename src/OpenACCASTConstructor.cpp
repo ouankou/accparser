@@ -940,9 +940,133 @@ bool skipStructuralTrivia(const BodyText &Body, std::size_t &Offset,
   return true;
 }
 
+struct LexedWord {
+  std::string text;
+  std::size_t begin;
+  std::size_t end;
+};
+
+/// The keywords of the structural lexer, read from the ANTLR vocabulary so
+/// that acclexer.g4 remains the single keyword table.
+const std::set<std::string, std::less<>> &getStructuralKeywords() {
+  static const std::set<std::string, std::less<>> Keywords = [] {
+    std::set<std::string, std::less<>> Result;
+    antlr4::ANTLRInputStream Input;
+    acclexer Lexer(&Input);
+    const antlr4::dfa::Vocabulary &Vocabulary = Lexer.getVocabulary();
+    for (std::size_t Type = 1; Type <= Vocabulary.getMaxTokenType(); ++Type) {
+      std::string_view Literal = Vocabulary.getLiteralName(Type);
+      if (Literal.size() > 2 && Literal.front() == '\'' &&
+          Literal.back() == '\'' && isIdentifierStart(Literal[1]))
+        Result.emplace(Literal.substr(1, Literal.size() - 2));
+    }
+    return Result;
+  }();
+  return Keywords;
+}
+
+/// A run of identifier characters and blanks with the blanks removed.
+struct KeywordRun {
+  /// Lowercased identifier characters.
+  std::string letters;
+  /// Body offset of each letter.
+  std::vector<std::size_t> offsets;
+  /// End of each blank-separated piece, as an index into letters.
+  std::vector<std::size_t> pieceEnds;
+  /// Positions in letters known to have no split.
+  std::vector<bool> failed;
+};
+
+/// Splits \p Run from \p Begin into structural words, appending the end of
+/// each word to \p Ends. A word is a structural keyword or an
+/// implementation-reserved clause name (two leading underscores; see
+/// parseClause). Such a name is an arbitrary identifier and no keyword
+/// contains two adjacent underscores, so it extends to the end of its
+/// blank-separated piece. Trying longer keywords first makes the split
+/// deterministic; the OpenACC keyword set is uniquely decodable, so a run has
+/// at most one split.
+bool splitKeywords(KeywordRun &Run, std::size_t Begin,
+                   std::vector<std::size_t> &Ends) {
+  std::string_view Letters = Run.letters;
+  if (Begin == Letters.size())
+    return true;
+  if (Run.failed[Begin])
+    return false;
+  if (Letters.substr(Begin, 2) == "__") {
+    std::size_t End = *std::upper_bound(Run.pieceEnds.begin(),
+                                        Run.pieceEnds.end(), Begin + 1);
+    Ends.push_back(End);
+    if (splitKeywords(Run, End, Ends))
+      return true;
+    Ends.pop_back();
+  }
+  const auto &Keywords = getStructuralKeywords();
+  for (std::size_t Length = Letters.size() - Begin; Length > 0; --Length) {
+    if (Keywords.find(Letters.substr(Begin, Length)) == Keywords.end())
+      continue;
+    Ends.push_back(Begin + Length);
+    if (splitKeywords(Run, Begin + Length, Ends))
+      return true;
+    Ends.pop_back();
+  }
+  Run.failed[Begin] = true;
+  return false;
+}
+
+/// Lexes structural words at \p Offset in a blank-insignificant (fixed-form
+/// Fortran) body. Every word outside a parenthesized argument names a
+/// directive, end marker, or clause, so a run of identifier characters and
+/// blanks is split into keywords: `endparallel` and `par allel loop` lex as
+/// `end parallel` and `parallel loop`. The longest prefix of blank-separated
+/// pieces that splits completely is used; when none does, the first piece is
+/// one word, exactly as in blank-significant forms.
+std::vector<LexedWord> lexBlankInsignificantWords(const BodyText &Body,
+                                                  std::size_t &Offset) {
+  const std::string &Text = Body.text;
+  std::vector<std::pair<std::size_t, std::size_t>> Pieces;
+  for (std::size_t I = Offset; I < Text.size() && isIdentifierContinue(Text[I]);
+       I = skipHorizontalSpace(Text, I)) {
+    std::size_t PieceBegin = I;
+    while (I < Text.size() && isIdentifierContinue(Text[I]))
+      ++I;
+    Pieces.emplace_back(PieceBegin, I);
+  }
+
+  std::vector<LexedWord> Words;
+  for (std::size_t Count = Pieces.size(); Count > 0; --Count) {
+    KeywordRun Run;
+    for (std::size_t P = 0; P < Count; ++P) {
+      for (std::size_t I = Pieces[P].first; I < Pieces[P].second; ++I) {
+        Run.letters.push_back(static_cast<char>(
+            std::tolower(static_cast<unsigned char>(Text[I]))));
+        Run.offsets.push_back(I);
+      }
+      Run.pieceEnds.push_back(Run.letters.size());
+    }
+    Run.failed.assign(Run.letters.size(), false);
+    std::vector<std::size_t> Ends;
+    if (!splitKeywords(Run, 0, Ends))
+      continue;
+    std::size_t Begin = 0;
+    for (std::size_t End : Ends) {
+      Words.push_back({Run.letters.substr(Begin, End - Begin),
+                       Run.offsets[Begin], Run.offsets[End - 1] + 1});
+      Begin = End;
+    }
+    Offset = Pieces[Count - 1].second;
+    return Words;
+  }
+
+  auto [Begin, End] = Pieces.front();
+  Words.push_back(
+      {lower(std::string_view(Text).substr(Begin, End - Begin)), Begin, End});
+  Offset = End;
+  return Words;
+}
+
 std::optional<StructuralInput>
-scanStructure(const BodyText &Body, Language Lang, const SourceManager &SM,
-              std::vector<Diagnostic> &Diagnostics) {
+scanStructure(const BodyText &Body, Language Lang, bool BlankInsignificant,
+              const SourceManager &SM, std::vector<Diagnostic> &Diagnostics) {
   StructuralInput Result;
   for (std::size_t I = 0; I < Body.text.size();) {
     if (!skipStructuralTrivia(Body, I, Lang, SM, Diagnostics))
@@ -962,15 +1086,32 @@ scanStructure(const BodyText &Body, Language Lang, const SourceManager &SM,
       continue;
     }
 
-    std::size_t WordBegin = I++;
-    while (I < Body.text.size() && isIdentifierContinue(Body.text[I]))
-      ++I;
-    std::size_t WordEnd = I;
-    std::string Word = Body.text.substr(WordBegin, WordEnd - WordBegin);
-    std::string StructuralWord = Lang == Language::Fortran ? lower(Word) : Word;
-    if (!Result.normalized.empty() && Result.normalized.back() != ',')
-      appendNormalized(Result, " ", WordBegin);
-    appendNormalized(Result, StructuralWord, WordBegin);
+    std::vector<LexedWord> Words;
+    if (BlankInsignificant) {
+      Words = lexBlankInsignificantWords(Body, I);
+    } else {
+      std::size_t WordBegin = I++;
+      while (I < Body.text.size() && isIdentifierContinue(Body.text[I]))
+        ++I;
+      std::string Word = Body.text.substr(WordBegin, I - WordBegin);
+      Words.push_back(
+          {Lang == Language::Fortran ? lower(Word) : Word, WordBegin, I});
+    }
+    for (const LexedWord &Word : Words) {
+      if (!Result.normalized.empty() && Result.normalized.back() != ',')
+        appendNormalized(Result, " ", Word.begin);
+      appendNormalized(Result, Word.text, Word.begin);
+    }
+    LexedWord Last = std::move(Words.back());
+    Words.pop_back();
+    for (LexedWord &Word : Words) {
+      SourceRange WordRange = bodyRange(Body, SM, Word.begin, Word.end);
+      Result.occurrences.push_back(
+          {std::move(Word.text), WordRange, WordRange, std::nullopt});
+    }
+    std::size_t WordBegin = Last.begin;
+    std::size_t WordEnd = Last.end;
+    std::string StructuralWord = std::move(Last.text);
 
     if (!skipStructuralTrivia(Body, I, Lang, SM, Diagnostics))
       return std::nullopt;
@@ -3142,8 +3283,10 @@ ParseResult parseDirective(std::string_view Input, ParseOptions Options) {
       scanEnvelope(Input, Options, SM, Result.diagnostics);
   if (!Body)
     return Result;
-  std::optional<StructuralInput> Structure =
-      scanStructure(*Body, Options.language, SM, Result.diagnostics);
+  // Fixed-form Fortran ignores blanks outside character literals.
+  bool BlankInsignificant = Options.inputForm == InputForm::FortranFixed;
+  std::optional<StructuralInput> Structure = scanStructure(
+      *Body, Options.language, BlankInsignificant, SM, Result.diagnostics);
   if (!Structure || hasError(Result.diagnostics))
     return Result;
 
