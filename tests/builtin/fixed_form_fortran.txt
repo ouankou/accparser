@@ -1,0 +1,91 @@
+c$acc endparallel
+
+c$acc parallelloopgang
+
+c$acc parallelloopgangvector
+
+c$acc kernelsloop
+
+c$acc endkernelsloop
+
+c$acc enterdatacopyin(a)
+
+c$acc exitdatadelete(a)
+
+c$acc datacopy(a)
+
+c$acc enddata
+
+c$acc updatehost(a)
+
+c$acc loopindependent
+
+c$acc loopseq
+
+c$acc loopcollapse(2)gang
+
+c$acc parallelnum_gangs(4)vector_length(32)
+
+c$acc parallelasyncwait
+
+c$acc parallelcopyin(a)copyout(b)
+
+c$acc parallelif(n.gt.1)
+
+c$acc paralleldefault(none)
+
+c$acc routineseq
+
+c$acc routine(foo)seq
+
+c$acc atomicupdate
+
+c$acc endatomic
+
+c$acc host_datause_device(a)
+
+c$acc waitasync(1)
+
+c$acc declarecreate(a)
+
+c$acc cache(a(1:4))
+
+c$acc serialloop
+
+c$acc parallelloopreduction(+:s)
+
+c$acc loopgang(static:4)
+
+C$ACC PARALLELLOOPGANGVECTORPRIVATE(MyArray)
+
+*$acc kernelsloopcopy(a)present_or_copyin(b)device_type(nvidia)vector_length(64)
+
+c$acc parallelcopyin(cgroup_alloc,device_compute)private(target_function,data1)
+
+c$acc routinebind("seq gang")seq
+
+c$acc exitdatadelete(a)finalizeasync(2)
+
+c$acc setdefault_async(1)device_num(0)
+
+c$acc updateif_presentself(a)
+
+c$acc parallel loop gang
+
+c$acc par allel lo op gang
+
+!$acc paral
+!$acc+lelloop
+!$acc+gang
+
+!$acc parallel
+!$acc&copyin(a,
+!$acc&b)copyout(c)
+
+c$acc parallel__vendor_hint(x)
+
+c$acc loop __vendor_flag seq
+
+c$acc parallelloopbogus
+
+c$acc endparallelloopgang

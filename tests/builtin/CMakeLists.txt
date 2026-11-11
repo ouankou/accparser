@@ -50,6 +50,7 @@ set(TEST_FILES
     update_fortran.txt
     wait.txt
     wait_fortran.txt
+    fixed_form_fortran.txt
     )
 
 add_dependencies(acc_base_test acc_tester.out)

@@ -67,6 +67,12 @@ Supported input forms are a directive body, a C/C++ `#pragma`, a C/C++
 emit any selected envelope through `openacc::PrintOptions`; by default it emits
 `#pragma` for C/C++ and a free-form sentinel for Fortran.
 
+Fixed-form Fortran ignores blanks outside character literals, so in that form
+directive and clause names may be split by blanks or continuation lines, or run
+together, as in Flang's cooked `!$acc endparallel` or
+`!$acc parallelloopgang`. The parser splits such runs into OpenACC keywords
+outside parenthesized arguments; argument text is never split.
+
 The AST owns its data and uses clause-specific types. For example, `copyin`,
 `copyout`, and `create` have distinct modifier enums, device-specific clauses
 are partitioned into explicit groups, lists are nonempty by construction, and
